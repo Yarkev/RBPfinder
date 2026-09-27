@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rbpfinder"
+version = "1.2.0"
+description = "High-recall, interpretable shortlists of candidate receptor-binding proteins in tailed dsDNA phage genomes"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Proprietary" }
+# Discovered the hard way in M15A: a fresh venv had none of these and the failure was a
+# bare ModuleNotFoundError, because nothing in the repository declared them.
+dependencies = [
+    "PyYAML>=6.0",
+    "jsonschema>=4.0",
+    "biopython>=1.80",
+]
+
+[project.scripts]
+rbpfinder = "rbpfinder.cli:main"
+
+# `rules/` stays physically at the repository root -- it is the single source of truth and
+# every developer script already reads it from there. Mapping it in as `rbpfinder.rules`
+# installs the SAME files as package data, so an installed copy never drifts from the
+# repository copy and no second location has to be kept in sync.
+[tool.setuptools]
+packages = [
+    "rbpfinder",
+    "rbpfinder.audit",
+    "rbpfinder.classify",
+    "rbpfinder.evidence",
+    "rbpfinder.ingest",
+    "rbpfinder.nominate",
+    "rbpfinder.output",
+    "rbpfinder.parse",
+    "rbpfinder.providers",
+    "rbpfinder.rules",
+]
+
+[tool.setuptools.package-dir]
+"rbpfinder.rules" = "rules"
+
+[tool.setuptools.package-data]
+"rbpfinder.rules" = ["*.yaml", "*.json"]

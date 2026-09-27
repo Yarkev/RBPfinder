@@ -1,0 +1,20 @@
+RBPfinder
+Copyright (c) 2026. All rights reserved.
+
+This software is proprietary. It matches the licence already declared in
+pyproject.toml (`license = { text = "Proprietary" }`); no new terms are asserted
+here.
+
+No permission is granted to copy, modify, distribute or sublicense this software
+except as separately agreed in writing with the copyright holder.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. RBPfinder produces prioritised experimental candidates, not validated
+biological conclusions; see KNOWN_ISSUES.md for what it does not promise.
+
+-------------------------------------------------------------------------------
+NOTE FOR THE MAINTAINER: this file states only what pyproject.toml already
+declared. If RBPfinder is to be released under an open licence (MIT, BSD-3,
+Apache-2.0) or under specific institutional terms, replace this file and the
+`license` field in pyproject.toml together -- they must not disagree.
+-------------------------------------------------------------------------------

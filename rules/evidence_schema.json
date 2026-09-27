@@ -1,0 +1,775 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rbpfinder/evidence_schema.json",
+  "title": "RBPfinder v1 evidence schema",
+  "description": "Data structures for RBPfinder. The candidate unit is CDS+region, never the whole CDS. Evidence attaches to regions; the protein-level role is derived from its regions. Thresholds live in decision_rules.yaml, never here.",
+  "$defs": {
+    "evidence_family": {
+      "type": "string",
+      "enum": [
+        "G",
+        "S",
+        "D",
+        "T",
+        "C",
+        "M"
+      ],
+      "description": "G genomic-context | S sequence-homology | D domain-profile | T structural | C comparative-genomics | M machine-learning"
+    },
+    "region_span": {
+      "type": "object",
+      "required": [
+        "start_aa",
+        "end_aa"
+      ],
+      "properties": {
+        "start_aa": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_aa": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "foldseek_hit_span",
+            "interpro_domain_span",
+            "hhpred_alignment_span",
+            "blast_alignment_span",
+            "plddt_segmentation",
+            "repeat_boundary",
+            "manual"
+          ],
+          "description": "how the region boundary was determined"
+        }
+      }
+    },
+    "evidence_record": {
+      "type": "object",
+      "description": "One piece of evidence, always attached to a region of a CDS.",
+      "required": [
+        "family",
+        "tool",
+        "region",
+        "direction",
+        "strength"
+      ],
+      "properties": {
+        "family": {
+          "$ref": "#/$defs/evidence_family"
+        },
+        "tool": {
+          "type": "string",
+          "examples": [
+            "pharokka_phrog",
+            "uniprot_blastp",
+            "interproscan",
+            "hhpred",
+            "phold_prostt5",
+            "foldseek_af3",
+            "af3_geometry",
+            "af3_multimer",
+            "phagerbpdetect",
+            "deposcope",
+            "synteny_variable_locus",
+            "c1_module_position",
+            "c3_dark_matter",
+            "c4_tandem_cluster"
+          ]
+        },
+        "region": {
+          "$ref": "#/$defs/region_span"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "supports_receptor_binding",
+            "supports_apparatus_membership",
+            "supports_structural_only",
+            "supports_non_rbp_identity",
+            "uninformative"
+          ],
+          "description": "'uninformative' covers null/zero results. Per invariant absence_is_not_counter_evidence, an uninformative record MUST NOT lower any tier."
+        },
+        "strength": {
+          "type": "string",
+          "enum": [
+            "strong",
+            "moderate",
+            "weak"
+          ]
+        },
+        "raw": {
+          "type": "object",
+          "description": "tool-native fields, kept verbatim for audit",
+          "properties": {
+            "hit_id": {
+              "type": "string"
+            },
+            "hit_description": {
+              "type": "string"
+            },
+            "evalue": {
+              "type": "number"
+            },
+            "identity_pct": {
+              "type": "number"
+            },
+            "probability_pct": {
+              "type": "number"
+            },
+            "tm_score": {
+              "type": "number"
+            },
+            "score": {
+              "type": "number"
+            }
+          }
+        },
+        "counts_as_independent": {
+          "type": "boolean",
+          "description": "false when de-correlated against another record in the same family (see evidence_families.correlations in decision_rules.yaml)"
+        },
+        "superseded_by": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "tool id of a higher-precedence record that overturned this one; the overturn MUST be logged, not deleted"
+        },
+        "is_heuristic": {
+          "type": "boolean",
+          "default": false,
+          "description": "true for uncalibrated indicators (Rg ratio, pLDDT profile shape). Must surface as a disclaimer in reports."
+        }
+      }
+    },
+    "candidate_region": {
+      "type": "object",
+      "description": "A sub-protein region carrying its own role assignment. This is the atomic unit of RBPfinder.",
+      "required": [
+        "region",
+        "role"
+      ],
+      "properties": {
+        "region": {
+          "$ref": "#/$defs/region_span"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "receptor_binding_domain",
+            "glycan_hydrolase_domain",
+            "distal_tip_domain",
+            "fibrous_stalk",
+            "baseplate_attachment_domain",
+            "ig_adapter_domain",
+            "trimerisation_domain",
+            "disordered_linker",
+            "unassigned"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_record"
+          }
+        },
+        "geometry": {
+          "type": "object",
+          "properties": {
+            "rg_ratio": {
+              "type": "number"
+            },
+            "mean_plddt": {
+              "type": "number"
+            },
+            "plddt_pattern": {
+              "type": "string",
+              "enum": [
+                "well_folded",
+                "disordered",
+                "head_plus_stalk",
+                "mixed"
+              ]
+            },
+            "length_angstrom": {
+              "type": "number"
+            },
+            "is_heuristic": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      }
+    },
+    "candidate_protein": {
+      "type": "object",
+      "required": [
+        "cds_id",
+        "nomination_channels",
+        "regions",
+        "tier_r",
+        "tier_e",
+        "protein_role"
+      ],
+      "properties": {
+        "cds_id": {
+          "type": "string",
+          "examples": [
+            "W073cp2a2_CDS0005"
+          ]
+        },
+        "locus": {
+          "type": "object",
+          "properties": {
+            "start_nt": {
+              "type": "integer"
+            },
+            "end_nt": {
+              "type": "integer"
+            },
+            "strand": {
+              "type": "string",
+              "enum": [
+                "+",
+                "-"
+              ]
+            },
+            "length_aa": {
+              "type": "integer"
+            },
+            "spans_origin": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "annotation": {
+          "type": "object",
+          "properties": {
+            "product": {
+              "type": "string"
+            },
+            "phrog": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "function_category": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "nomination_channels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "C1",
+              "C2",
+              "C3",
+              "C4",
+              "C5",
+              "C6",
+              "S6-A1",
+              "S6-A2",
+              "S6-A3",
+              "S6-A4"
+            ]
+          },
+          "minItems": 1,
+          "description": "provenance — which channels put this CDS in pool P. S6-* means the CDS was missed by every Stage 1 channel and recovered by that completeness audit; keeping it distinct from C1-C6 is what makes a recall failure of Stage 1 visible afterwards."
+        },
+        "regions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/candidate_region"
+          },
+          "minItems": 1,
+          "description": "at least one region; a protein with no resolved domains gets a single full-length region with role 'unassigned'"
+        },
+        "independent_families": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_family"
+          },
+          "description": "families counted ONCE each after de-correlation; drives tier_e"
+        },
+        "tier_r": {
+          "type": "string",
+          "enum": [
+            "R1",
+            "R2",
+            "R3",
+            "N"
+          ],
+          "description": "likelihood axis"
+        },
+        "tier_e": {
+          "type": "string",
+          "enum": [
+            "E3",
+            "E2",
+            "E1"
+          ],
+          "description": "completeness axis = count of independent evidence families"
+        },
+        "protein_role": {
+          "type": "string",
+          "enum": [
+            "main_rbp",
+            "depolymerase_rbp",
+            "distal_tip_rbp",
+            "distal_tip_unproven",
+            "ig_adapter_rod",
+            "connector_baseplate",
+            "structural_fibre",
+            "assembly_chaperone",
+            "non_rbp",
+            "unresolved"
+          ]
+        },
+        "definition_layer": {
+          "type": "string",
+          "enum": [
+            "RBP_core",
+            "RBP_associated",
+            "structural_tail_component",
+            "non_rbp"
+          ],
+          "description": "the three-layer operational definition; experimental candidate set = RBP_core UNION selected RBP_associated"
+        },
+        "rbp_evidence_localisation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "examples": [
+            "aa 651-910",
+            "aa 111-667, 116-665"
+          ],
+          "description": "required whenever definition_layer is RBP_core. A comma-separated LIST of the residue spans carrying receptor-binding evidence -- not a hull over them. Changed by M20-b2E4: it previously reported min(start)..max(end) over a single de-correlated record, which asserted that everything between the outermost spans was evidence. The type is unchanged (string), so this is not a schema migration; the CONTENT is now discrete spans and may name several."
+        },
+        "downgrade": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "level": {
+              "type": "string",
+              "enum": [
+                "hard_exclusion",
+                "strong_downgrade"
+              ]
+            },
+            "positive_counter_evidence": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "null when not downgraded. 'no positive evidence' is NOT a valid downgrade and has no representation here by design."
+        },
+        "af3_priority": {
+          "type": "string",
+          "enum": [
+            "STAGE2_FIRST",
+            "P1",
+            "P2",
+            "P3"
+          ],
+          "description": "structure-prediction priority from stage3.af3_priority. STAGE2_FIRST is not a priority but a breakpoint: the cheap sequence search has not run, and ordering a structure before it would invert the cost funnel. The enum omitted it until M19-f1 because run_result.json was being written by a second, reduced rule that could never produce it -- see the AF3 race in MILESTONE_19."
+        },
+        "set_membership": {
+          "type": "string",
+          "enum": [
+            "primary",
+            "rescue",
+            "reported_only"
+          ]
+        }
+      }
+    },
+    "screening_row": {
+      "type": "object",
+      "description": "One row per CDS in the ENTIRE genome -> all_CDS_screening.tsv. Mandatory audit trail.",
+      "required": [
+        "cds_id",
+        "length_aa",
+        "annotation",
+        "module",
+        "nomination_channels",
+        "is_candidate",
+        "reason"
+      ],
+      "properties": {
+        "cds_id": {
+          "type": "string"
+        },
+        "start_nt": {
+          "type": "integer"
+        },
+        "end_nt": {
+          "type": "integer"
+        },
+        "strand": {
+          "type": "string"
+        },
+        "length_aa": {
+          "type": "integer"
+        },
+        "annotation": {
+          "type": "string"
+        },
+        "phrog": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "module": {
+          "type": "string",
+          "enum": [
+            "tail_morphogenesis",
+            "head_packaging",
+            "replication",
+            "lysis",
+            "regulation",
+            "unknown",
+            "other"
+          ]
+        },
+        "nomination_channels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "phold_call": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ml_scores": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "families_positive": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_family"
+          }
+        },
+        "is_candidate": {
+          "type": "boolean"
+        },
+        "tier": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "examples": [
+            "R1-E3"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "NON-EMPTY for every row, especially is_candidate=false. This field is what makes a later miss diagnosable."
+        }
+      }
+    },
+    "completeness_audit": {
+      "type": "object",
+      "description": "Stage 6 output. Mandatory; a run without this is invalid.",
+      "required": [
+        "audits",
+        "reopen_cycles",
+        "terminated_cleanly"
+      ],
+      "properties": {
+        "audits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "audit_id",
+              "hits",
+              "resolved"
+            ],
+            "properties": {
+              "audit_id": {
+                "type": "string",
+                "enum": [
+                  "A1",
+                  "A2",
+                  "A3",
+                  "A4"
+                ]
+              },
+              "question": {
+                "type": "string"
+              },
+              "hits": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "cds_id": {
+                      "type": "string"
+                    },
+                    "why_flagged": {
+                      "type": "string"
+                    },
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "reopened_and_promoted",
+                        "reopened_and_downgraded",
+                        "documented_unresolved"
+                      ]
+                    },
+                    "written_reason": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "resolved": {
+                "type": "boolean"
+              }
+            }
+          },
+          "minItems": 4
+        },
+        "reopen_cycles": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cap_reached": {
+          "type": "boolean",
+          "default": false
+        },
+        "unresolved_cds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "cds_id": {
+                "type": "string"
+              },
+              "written_reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "terminated_cleanly": {
+          "type": "boolean",
+          "description": "true only when all four audits returned no unexplained CDS, or every unexplained CDS carries a written reason"
+        }
+      }
+    },
+    "run_result": {
+      "type": "object",
+      "required": [
+        "phage_id",
+        "architecture",
+        "k_default",
+        "candidates",
+        "screening",
+        "completeness_audit"
+      ],
+      "properties": {
+        "phage_id": {
+          "type": "string"
+        },
+        "input_mode": {
+          "type": "string",
+          "enum": [
+            "A_annotated",
+            "B_raw_fasta"
+          ]
+        },
+        "gene_caller": {
+          "type": "string",
+          "description": "recorded explicitly; changing it changes the candidate set"
+        },
+        "qc": {
+          "type": "object",
+          "properties": {
+            "is_circular": {
+              "type": "boolean"
+            },
+            "is_complete": {
+              "type": "boolean"
+            },
+            "origin_inside_structural_module": {
+              "type": "boolean"
+            },
+            "origin_spanning_cds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "flagged_small_orfs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "suspected_frameshifts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "architecture": {
+          "type": "string",
+          "enum": [
+            "A_sipho_gpJ",
+            "B_myo_baseplate",
+            "C_podo_T7",
+            "D_N4_schitoviridae",
+            "E_jumbo_or_unresolved"
+          ]
+        },
+        "architecture_is_prior_only": {
+          "type": "boolean",
+          "const": true
+        },
+        "k_default": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "display/reporting parameter ONLY; never a stopping rule or a cap"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/candidate_protein"
+          }
+        },
+        "primary_set": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rescue_set": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "apparatus_topology": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "examples": [
+            "CDS0004 adapter rod -> CDS0005 main RBP -> CDS0006 connector -> CDS0007 distal tip"
+          ]
+        },
+        "screening": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/screening_row"
+          }
+        },
+        "completeness_audit": {
+          "$ref": "#/$defs/completeness_audit"
+        },
+        "run_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "operating-state flags for this run, e.g. STRUCTURAL_SCREEN_UNAVAILABLE, C1_ANCHORS_NOT_FOUND, C4_CLUSTER_CAP_EXCEEDED. Distinct from heuristic_disclaimers: these describe what the run could not do, not which indicators are uncalibrated."
+        },
+        "heuristic_disclaimers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "every uncalibrated indicator used in this run, surfaced to the reader"
+        },
+        "run_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "did the executor finish; NOT a claim about biological completeness"
+        },
+        "stage2_remote_status": {
+          "type": "string",
+          "enum": [
+            "not_requested",
+            "completed",
+            "degraded_remote_stage2_partial",
+            "failed_remote_stage2"
+          ],
+          "description": "what the remote Stage 2 arm achieved. A separate question from run_status: a run can finish (completed) while its remote arm achieved nothing (failed_remote_stage2)"
+        },
+        "completeness_assessment": {
+          "type": "string",
+          "enum": [
+            "complete",
+            "partial",
+            "limited"
+          ],
+          "description": "is the evidence sufficient to compress the candidate space"
+        },
+        "limitations": {
+          "type": "array",
+          "description": "why the assessment is not complete, in user-facing terms",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "text",
+              "severity"
+            ]
+          }
+        },
+        "assessment_coverage": {
+          "type": "string",
+          "enum": [
+            "full",
+            "reduced"
+          ],
+          "description": "were the optional audit capabilities available; a property of the installation, not the phage"
+        },
+        "completeness_facts": {
+          "type": "object",
+          "description": "the facts layer behind the completeness colour, reported in its own right"
+        },
+        "top_unresolved_candidates": {
+          "type": "object",
+          "description": "presentation-only exploratory list shown when the evidence cannot produce a shortlist; never a fourth evidence set, never counted in recall"
+        }
+      }
+    }
+  },
+  "type": "object",
+  "$ref": "#/$defs/run_result"
+}

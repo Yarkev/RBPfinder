@@ -32,7 +32,7 @@ It is idempotent: re-run it any time, and after a rebuild it restores the databa
 > **nominated candidate pool** by default, not every CDS — much less work, same result.
 > `--foldseek-all-cds` forces genome-wide if you ever want it.
 
-## 2. Register the tool with the agent
+## 2. Register the tools with the agent
 
 ```python
 import sys
@@ -42,8 +42,20 @@ from biomni.agent import A1
 from rbpfinder_biomni import register
 
 agent = A1(path="./biomni_data", llm="claude-sonnet-4-5-20250929")
-register(agent)                               # adds the tool + software + database entries
+register(agent)                               # adds the tools + software + database entries
 ```
+
+`register` adds three tools, meant to be called in order:
+
+| Tool | What it does |
+|---|---|
+| `rbpfinder_workflow_plan(mode=None)` | settles **fast vs accurate** with the user and returns the exact annotation commands and the required deliverable |
+| `check_annotation(genbank_path=...)` | seconds-long precondition check, so a bad annotation fails *before* phold or the analysis |
+| `run_rbpfinder(...)` | the analysis; returns Primary / Rescue / completeness |
+
+Also copy `know_how/phage_rbp_identification.md` into your Biomni know-how library: it is
+the procedure and the scientific invariants the agent should follow, including the failure
+modes it must not reproduce.
 
 `register(agent)` reads `RBPFINDER_FOLDSEEK_DB` and `RBPFINDER_PROSTT5_MODEL` from the
 environment (set by `rbpfinder.env`), so run step 1 and `source` the env file in the same
@@ -53,14 +65,46 @@ process, or export those three variables before constructing the agent.
 
 ```python
 agent.go(
-    "Analyse /data/phageX.gbk with RBPfinder. The host is Klebsiella pneumoniae. "
-    "Use local structure search. Report the Primary shortlist and the completeness state."
+    "Find the receptor-binding protein in /data/G368-2.fasta. "
+    "Host is Acinetobacter baumannii."
 )
 ```
 
-The agent calls `run_rbpfinder(...)`, which runs the installed CLI once and returns the
-Primary shortlist, the Rescue set, the completeness state with its reasons, and paths to
-the full artefacts (`run_result.json`, `RBP_report.md`).
+The standardised flow the agent then follows:
+
+```
+rbpfinder_workflow_plan()        -> asks you: fast (default) or accurate?
+  |  fast                                     accurate
+  v                                             v
+pharokka                                  pharokka -> phold        (Biomni runs these)
+  |                                             |
+  v  pharokka.gbk                               v  phold.gbk
+check_annotation()               -> usable? seconds, fails with a precise reason
+  v
+run_rbpfinder(mode=...)          -> Primary / Rescue / completeness
+```
+
+**The division of labour is deliberate.** Biomni annotates; RBPfinder decides what is an
+RBP. Keeping the annotator outside RBPfinder means a pharokka or PHROGs upgrade cannot
+quietly move a tier, and the judgment layer stays frozen, auditable and reproducible.
+
+### fast vs accurate
+
+| | fast (default) | accurate |
+|---|---|---|
+| Annotation | pharokka | pharokka + phold (genome-wide) |
+| Extra compute | — | **1–2 h on 8 CPU cores** |
+| Structural evidence | yes — local Foldseek over the candidate pool | yes — the same local Foldseek step |
+| What the extra time buys | — | better annotation: resolves CDS pharokka leaves as "hypothetical", improving nomination and the direction read off a product name |
+
+phold does **not** add a second independent structural evidence family: RBPfinder's
+de-correlation collapses a phold hit and a Foldseek hit to one family, by design. Reach
+for `accurate` when the genome is poorly annotated, or when a fast run came back
+`completeness: limited`.
+
+> Hand over phold's **GenBank**, never its per-CDS predictions TSV. The table carries no
+> protein sequence, so local structure search would be silently unavailable. `phold.gbk`
+> has phold's improved products *and* the translations.
 
 ## What the tool will and won't do
 

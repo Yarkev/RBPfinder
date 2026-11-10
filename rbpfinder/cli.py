@@ -1012,6 +1012,9 @@ def _fasta_handoff(args, rules):
         "  - Local:  run Pharokka  --  https://github.com/gbouras13/pharokka",
         "  - Then provide the resulting .gbk/.gbff file to RBPfinder.",
         "",
+        "Check the annotation before analysing it (seconds, changes nothing):",
+        "  rbpfinder validate-input --genbank annotated_phage.gbk",
+        "",
         # The sentence that stops a user assuming the file was quietly uploaded the
         # moment they passed it in.
         "No genome data has been transmitted by RBPfinder.",
@@ -1086,6 +1089,16 @@ def main(argv=None):
     if argv_list and argv_list[0] == "doctor":
         from . import doctor as _doctor
         return _doctor.main(argv_list[1:])
+    # `validate-input` answers the precondition question on its own, in seconds, so an
+    # orchestrator can check an annotation BEFORE spending an hour on phold or on a run.
+    # Dispatched like the other subcommands, before the analysis parser's required flags.
+    if argv_list and argv_list[0] == "validate-input":
+        from . import validate_cli as _validate
+        try:
+            return _validate.main(argv_list[1:])
+        except InputValidationError as exc:
+            sys.stderr.write("Input error: %s\n" % exc)
+            return exc.exit_code
     if argv_list and argv_list[0] == "database":
         from . import database_cli as _db
         try:

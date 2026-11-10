@@ -26,7 +26,11 @@ dependency wheels in this bundle are built for one platform and Python minor ver
 1. Run `rbpfinder doctor`. It only reports; it changes nothing, downloads nothing, and
    builds nothing.
 2. Verify the input is an **annotated** GenBank file — RBPfinder needs CDS features with
-   translations, not a bare nucleotide sequence.
+   translations, not a bare nucleotide sequence. Do not eyeball it; run
+   `rbpfinder validate-input --genbank <file>`. It takes seconds, changes nothing, uses
+   the same readers the analysis uses, and names exactly what is wrong. Run it *before*
+   any expensive annotation step too (phold is an hour or more on CPU), and before
+   starting an analysis you would otherwise discover is impossible at the end.
 3. Determine whether Stage 2 runs locally or at EBI (see `references/DATA_POLICY.md`).
 4. For EBI remote Stage 2, before submitting anything:
    - state that **candidate protein sequences** and an **EBI contact email** will be

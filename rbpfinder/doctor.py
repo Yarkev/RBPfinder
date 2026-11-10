@@ -23,7 +23,8 @@ import os
 import pathlib
 
 from . import database, resources
-from .capability import BlastCapability
+from .capability import BlastCapability, FoldseekCapability
+from .config import Rules
 from .errors import EXIT_OK, EXIT_CAPABILITY
 
 DB_ENV = {"DB_PHAGE": "RBPFINDER_DB_PHAGE", "DB_HOST": "RBPFINDER_DB_HOST"}
@@ -54,6 +55,8 @@ def collect(env=None, blastp=None, makeblastdb=None):
     rules, schema = resources.default_rules_path(), resources.default_schema_path()
     cap = BlastCapability(blastp=blastp, makeblastdb=makeblastdb, env=env)
 
+    rules_obj = Rules(rules) if rules else None
+
     rows = []      # (section, name, state, required_for, detail)
     rows.append(("RBPfinder", "package", "AVAILABLE", "core", ""))
     rows.append(("RBPfinder", "rules", "AVAILABLE" if rules else "MISSING", "core",
@@ -81,6 +84,13 @@ def collect(env=None, blastp=None, makeblastdb=None):
                  "AVAILABLE" if pharokka else "MISSING", "mode_b",
                  pharokka or "optional; Mode A does not need it"))
 
+    # Foldseek drives local Stage 3 (structure, family T). Same resolver the run uses.
+    fcap = FoldseekCapability(env=env)
+    ft = fcap["foldseek"]
+    rows.append(("Local executables", "foldseek",
+                 "AVAILABLE" if ft.available else "MISSING", "local_stage3",
+                 "%s -- %s" % (ft.source, ft.path or ft.detail)))
+
     dbs = {}
     for label, role in (("DB_PHAGE", "phage"), ("DB_HOST", "host")):
         state, detail = _database(role, env)
@@ -100,17 +110,40 @@ def collect(env=None, blastp=None, makeblastdb=None):
                          "host scope: %s" % (taxon or
                                              "unknown -- metadata records no host organism")))
 
+    # Structure databases and ProstT5 weights for local Stage 3. Reported read-only,
+    # through the same resolver the run uses -- doctor never grows a second opinion.
+    from . import stage3_local
+    s3_dbs, s3_decisions = stage3_local.resolve_structure_databases(
+        rules_obj, env=env) if rules_obj else ([], [])
+    for d in s3_decisions:
+        state = "AVAILABLE" if d.get("used") else (
+            "CONFIGURED, INVALID" if d.get("fatal") else "NOT CONFIGURED")
+        rows.append(("Databases", "structure:%s" % d.get("label"), state,
+                     "local_stage3", d.get("detail", d.get("reason", ""))))
+    prostt5 = env.get("RBPFINDER_PROSTT5_MODEL")
+    prostt5_ok = bool(prostt5) and pathlib.Path(prostt5).exists()
+    rows.append(("Databases", "ProstT5 weights",
+                 "AVAILABLE" if prostt5_ok else "NOT CONFIGURED", "local_stage3",
+                 (prostt5 if prostt5_ok else
+                  "set $RBPFINDER_PROSTT5_MODEL or pass --prostt5-model; needed to search "
+                  "an amino-acid query without a structure")))
+
     # Derived capabilities. blastp and makeblastdb are reported separately and combined
     # separately: a machine with blastp but no makeblastdb can run Stage 2 and cannot run
     # C5, and one boolean cannot say that.
     have_blastp = cap["blastp"].available
     have_mkdb = cap["makeblastdb"].available
     any_db = any(s == "AVAILABLE" for s in dbs.values())
+    have_foldseek = ft.available
+    any_struct_db = len(s3_dbs) > 0
     caps = [
         ("Mode A GenBank", "AVAILABLE" if rules and schema else "UNAVAILABLE", "core",
          "annotated GenBank in, shortlist out"),
         ("Local Stage 2", "AVAILABLE" if (have_blastp and any_db) else "UNAVAILABLE",
          "local_stage2", "requires blastp + at least one configured database"),
+        ("Local Stage 3", "AVAILABLE" if (have_foldseek and any_struct_db and prostt5_ok)
+         else "UNAVAILABLE", "local_stage3",
+         "requires foldseek + a structure database + ProstT5 weights"),
         ("C5 comparative", "AVAILABLE" if (have_blastp and have_mkdb) else "UNAVAILABLE",
          "c5", "requires blastp + makeblastdb + a comparator cohort at run time"),
         ("Mode B FASTA", "AVAILABLE" if pharokka else "UNAVAILABLE", "mode_b",

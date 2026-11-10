@@ -90,6 +90,64 @@ DB_PHAGE 对任何有尾噬菌体都适用，会自动使用。
 宿主库里的 exo-alpha-sialidase 同源是把它判定为受体结合蛋白的关键证据。
 不声明宿主，这条证据就拿不到——所以 `--host` 不是可有可无的装饰参数。
 
+## 4a. 本地结构证据（Local Stage 3，Linux）
+
+**这是把"找不准"真正改好的一步。** R1（强 RBP）要求至少两个独立证据家族、且含一个
+直接家族（T 结构 / D 结构域 / S 序列同源）。只有基因组上下文时，真正的 RBP 往往停在
+R2/R3，上不了实验清单；而光靠上下文窗口又会把邻近的结构蛋白一起拉进来。**结构证据
+（家族 T）正是把这两种错都掰正的那条线。**
+
+过去结构证据走手动：导出 batch → 在网站上建模、检索 → 下载填回。在能装软件的 Linux
+服务器上，可以让 Foldseek **在本机直接算完**，不碰任何网页、不花 token——它用 ProstT5
+把氨基酸序列就地转成结构字母，再对本地结构库检索（和 phold 用的是同一条 ProstT5 路线）。
+本机运行、**不传输任何序列**，所以 `private` 策略下就允许；`import_only` 下会被拒。
+
+一次性准备（装软件、放库，几十 GB）：
+
+```bash
+# 1. 装 foldseek（Linux 原生）
+conda install -c bioconda foldseek      # 或从 github releases 下二进制
+
+# 2. 下结构库（功能库 pdb100 是判定 RBP 功能身份的关键；cath50 可选）
+foldseek databases PDB100 /data/foldseek/pdb100 tmp
+
+# 3. ProstT5 权重（让序列直接可搜，不需要先跑 AlphaFold）
+foldseek databases ProstT5 /data/foldseek/prostt5 tmp
+```
+
+告诉 RBPfinder 它们在哪，用环境变量（一次设好）或命令行参数（每次给）：
+
+```bash
+export RBPFINDER_FOLDSEEK=foldseek
+export RBPFINDER_FOLDSEEK_DB="pdb100=/data/foldseek/pdb100"
+export RBPFINDER_PROSTT5_MODEL=/data/foldseek/prostt5
+rbpfinder --genbank phage.gbk --host "..." --out results/
+```
+
+```bash
+# 或逐次显式给（--foldseek-db 可重复）
+rbpfinder --genbank phage.gbk --out results/ \
+          --foldseek /opt/foldseek/bin/foldseek \
+          --foldseek-db pdb100=/data/foldseek/pdb100 \
+          --prostt5-model /data/foldseek/prostt5
+```
+
+先 `rbpfinder doctor` 确认三样都 AVAILABLE、`Local Stage 3` 显示 AVAILABLE 再跑。
+数据库的 `label` 必须是 Stage 3 认识的名字（`pdb100`、`cath50` …）；用别的名字会被拒绝，
+而不是搜完再悄悄丢弃。结构库检索结果写进 `results/stage3_local/`，每个 CDS 一个 JSON
+（**没命中就是空 results 的 JSON，不是缺文件**——"查过没中"和"没查过"在盘上可区分），
+并以 `foldseek_json` 的身份进入与手动导入完全相同的证据管线。关掉本步用 `--no-local-stage3`。
+
+效果（合成算例，尾丝蛋白 CDS）：
+
+```
+无结构证据        R2-E2   families D,G
+本地 Foldseek 后   R1-E3   families D,G,T   ← 结构命中补齐了直接家族 T，进入 Primary
+```
+
+> **跨平台说明**：Foldseek 没有原生 Windows 版，本步因此是 **Linux 专用**。Windows 上
+> 结构证据仍走手动网页路线。这也是把 RBPfinder 搬到 Linux 云服务器的主要动机。
+
 ## 4b. 批量处理多株基因组
 
 手上有几十株噬菌体时，不需要逐株手动敲命令：

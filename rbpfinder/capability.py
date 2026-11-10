@@ -27,7 +27,8 @@ import shutil
 
 from .errors import CapabilityUnavailable
 
-ENV_VARS = {"blastp": "RBPFINDER_BLASTP", "makeblastdb": "RBPFINDER_MAKEBLASTDB"}
+ENV_VARS = {"blastp": "RBPFINDER_BLASTP", "makeblastdb": "RBPFINDER_MAKEBLASTDB",
+            "foldseek": "RBPFINDER_FOLDSEEK"}
 
 
 class Tool(object):
@@ -111,5 +112,38 @@ class BlastCapability(object):
 
     def describe(self):
         """Rows for `rbpfinder doctor` and for run provenance."""
+        return {n: {"path": t.path, "source": t.source, "detail": t.detail}
+                for n, t in sorted(self.tools.items())}
+
+
+class FoldseekCapability(object):
+    """Resolve the `foldseek` executable, by the same precedence-is-authority rule.
+
+    Foldseek is the only executable local Stage 3 needs. A structure database and the
+    ProstT5 weights are paths, not executables, so they are resolved where they are
+    used (stage3_local) rather than here -- the same split BlastCapability keeps between
+    the blastp executable and the BLAST database.
+    """
+
+    def __init__(self, foldseek=None, env=None):
+        env = os.environ if env is None else env
+        self.tools = {"foldseek": _resolve("foldseek", foldseek, env)}
+
+    def __getitem__(self, name):
+        return self.tools[name]
+
+    def get(self, name):
+        return self.tools[name]
+
+    def require(self, *names):
+        names = names or ("foldseek",)
+        missing = [self.tools[n] for n in names if not self.tools[n].available]
+        if missing:
+            raise CapabilityUnavailable(
+                "; ".join("%s unavailable -- %s" % (t.name, t.detail) for t in missing),
+                capability=",".join(t.name for t in missing))
+        return {n: self.tools[n].path for n in names}
+
+    def describe(self):
         return {n: {"path": t.path, "source": t.source, "detail": t.detail}
                 for n, t in sorted(self.tools.items())}

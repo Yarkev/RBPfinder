@@ -193,6 +193,35 @@ C1 / C2 把 `Tal`、`Dit` 当子串匹配
 完整闸门链上重跑。已知需要留意的一类：T2/T6 类噬菌体的 gp38 是真正的 adhesin，
 若其产物名恰为 "tail fiber assembly protein" 而不含 adhesin/receptor 字样，会被读成结构性。
 
+## 10. 本地 Foldseek（Local Stage 3）— 代码与接线已完成，真实二进制未在此验证
+
+填上了项目一直登记却没实现的 `local_foldseek`（`data_policy.provider_registry` 与
+`capability_matrix` 里早有槽位，`executor: not_bundled`）。它在本机用 ProstT5 把氨基酸
+序列直接搜本地结构库，产物归一化成与 Foldseek 网页版相同的 JSON、以 `foldseek_json`
+进入既有证据管线，所以 `structural.build` 是唯一的解读者——和手动导入一条路。本机运行、
+`transmits: false`，`private` 允许、`import_only` 拒绝。
+
+**已在本仓库验证**（`tests/test_local_foldseek.py`，用一个假 foldseek 二进制跑通整条
+subprocess → 归一化 → `structural.build` → 整次 CLI 运行）：
+
+```
+参数拼装 / TSV→web-JSON 归一化 / 缓存 / searched-no-hit 落盘 / 未知 label 拒绝
+整次运行：合成尾丝 CDS 在配置本地 Foldseek 后 R2-E2 → R1-E3（补上家族 T）
+```
+
+**尚未验证、必须在目标机器确认**：
+
+```
+真实 foldseek easy-search 是否按 stage3.local_foldseek.format_output 的列顺序输出
+  —— 假二进制按该契约产出，真二进制的列名/顺序要在装好后核对一次
+pdb100 的 theader 是否带可分类的功能描述（direction_rule 读的是描述，不是 accession）
+ProstT5 --prostt5-model 的确切调用形式随 foldseek 版本可能不同
+没有跑任何真实结构 benchmark —— 这一项改变 tier，发布前要在完整闸门链上重跑
+```
+
+本机（这台开发容器）装不了 foldseek、下不了 pdb100、也没有 GPU，所以以上只能在你的
+Linux 服务器上收口。
+
 ## 不属于缺陷的行为
 
 以下是设计选择，不要当成 bug 报：

@@ -13,8 +13,10 @@ import sys
 
 from .config import Rules
 from . import resources as _resources
-from .capability import BlastCapability
+from .capability import BlastCapability, FoldseekCapability
 from . import stage2_local
+from . import stage3_local
+from .providers import local_foldseek
 from . import stage2_remote
 from . import annotation as annotation_mod
 from . import capability_matrix as capmat
@@ -152,6 +154,22 @@ def _af3_priority(rec, tier, records):
     if tier["tier_r"] in ("R1", "R2"):
         return "P2"
     return "P3"
+
+
+def _parse_foldseek_dbs(values):
+    """--foldseek-db LABEL=PATH entries -> [(label, path), ...].
+
+    A bare path with no `=` is kept with label None so `resolve_structure_databases`
+    reports it as the configuration error it is, rather than guessing a label.
+    """
+    out = []
+    for v in values or []:
+        if "=" in v:
+            label, path = v.split("=", 1)
+            out.append((label.strip(), path.strip()))
+        else:
+            out.append((None, v.strip()))
+    return out
 
 
 def run(args):
@@ -347,6 +365,39 @@ def run(args):
                                    issued=evacq.issued_batch_ids(args.out, rules))
     for v in binding["rejected"]:
         manifest.drop(v["cds_id"], v["kind"])
+
+    # ---- Local Stage 3: structure search on this machine, family T -----------------
+    # The pre-registered `local_foldseek` provider (data_policy.provider_registry), built
+    # at last. It transmits nothing, so the data policy permits it wherever local BLAST is
+    # permitted and refuses it in import_only. Its results are produced by THIS run, so
+    # they are added after the import-binding check, the same way the remote backend adds
+    # its own -- there is no returned file to bind. A pure --stage2-manifest replay is
+    # left untouched: reproducing a historical run must consult nothing new.
+    stage3_prov = {"mode": "disabled" if args.no_local_stage3 else "local_foldseek"}
+    pure_replay = bool(args.stage2_manifest) and not seeds_cache
+    fs_allowed, fs_reason = policy.allows(local_foldseek.PROVIDER_ID)
+    if args.no_local_stage3:
+        stage3_prov["reason"] = "disabled with --no-local-stage3"
+    elif pure_replay:
+        stage3_prov.update({"mode": "disabled",
+                            "reason": "pure --stage2-manifest replay; no new search"})
+    elif not fs_allowed:
+        stage3_prov.update({"mode": "disabled", "reason": fs_reason})
+    else:
+        fs_cap = FoldseekCapability(foldseek=args.foldseek)
+        if not fs_cap.get("foldseek").available and not (
+                args.foldseek_db or os.environ.get("RBPFINDER_FOLDSEEK_DB")):
+            # Nothing configured: a default install is unchanged, no message, no-op.
+            stage3_prov["reason"] = "no foldseek executable or structure database configured"
+        else:
+            explicit_dbs = _parse_foldseek_dbs(args.foldseek_db)
+            prostt5 = args.prostt5_model or os.environ.get("RBPFINDER_PROSTT5_MODEL")
+            s3_rows, s3_prov = stage3_local.prepare(
+                cds, rules, fs_cap, args.out, prostt5_model=prostt5,
+                explicit_dbs=explicit_dbs, env=os.environ)
+            stage3_prov.update(s3_prov)
+            for r in s3_rows:
+                manifest.add(r["cds_id"], r["kind"], r["path"])
 
     def remote_delta(pool_ids):
         """Search whatever the current pool has not been searched for yet.
@@ -560,6 +611,7 @@ def run(args):
         "annotation": annotation.provenance() if annotation else None,
         "uniprot_enrichment": None,        # filled in below, after the candidates exist
         "stage2_local": stage2_prov,
+        "stage3_local": stage3_prov,
         "stage2_remote": (remote.provenance() if remote else None),
         "comparative_genomics": ({
             "state": c5["state"],
@@ -1111,6 +1163,22 @@ def main(argv=None):
     p.add_argument("--host-taxid",
                    help="NCBI taxonomy id for --host. Required for the remote host "
                         "search: RBPfinder never guesses a taxonomy id")
+    p.add_argument("--foldseek",
+                   help="foldseek executable for local Stage 3 structure search. "
+                        "Default: $RBPFINDER_FOLDSEEK, else PATH. A path given here must "
+                        "exist -- it is never silently replaced by a PATH lookup")
+    p.add_argument("--foldseek-db", action="append", metavar="LABEL=PATH",
+                   help="a local Foldseek structure database as label=path, e.g. "
+                        "pdb100=/data/foldseek/pdb100. Repeatable. The label must name a "
+                        "database Stage 3 recognises (pdb100, cath50, ...); anything else "
+                        "is refused rather than searched and dropped. Also settable via "
+                        "$RBPFINDER_FOLDSEEK_DB as label=path[,label=path]")
+    p.add_argument("--prostt5-model",
+                   help="directory of the ProstT5 weights, so an amino-acid query is "
+                        "searched directly (no AlphaFold step). Default: "
+                        "$RBPFINDER_PROSTT5_MODEL")
+    p.add_argument("--no-local-stage3", action="store_true",
+                   help="do not run local Foldseek even if it is configured")
     p.add_argument("--no-local-stage2", action="store_true",
                    help="do not search configured databases (fixtures, quick smokes, "
                         "reproduction runs)")

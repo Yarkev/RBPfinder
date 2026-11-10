@@ -64,6 +64,15 @@ only). See `packaging/skill/rbpfinder/references/USER_GUIDE.md` for what to do n
 |---|---|---|
 | **remote** (default) | this repo, installed | yes — to EMBL-EBI, after an explicit disclosure and per-run authorization |
 | **local** | this repo + BLAST+ + a sequence database package | no |
+| **local + structure** (Linux) | the above + Foldseek + a structure DB + ProstT5 weights | no — structure is searched on the machine |
+
+The **local + structure** profile is the one to reach for when candidates come back
+imprecise. Structural evidence (family T) is what lifts a real receptor-binding protein
+to the top tier and what tells a true binder apart from an apparatus protein that merely
+sits in the tail — and on Linux, Foldseek with the ProstT5 weights computes it locally,
+with no AlphaFold step, no web handoff and nothing transmitted. See
+`packaging/skill/rbpfinder/references/USER_GUIDE.md` §4a. (Foldseek has no native Windows
+build, so this profile is Linux-only.)
 
 Sequence databases are not part of this repository. The remote profile is the default
 deliberately, so a new install needs no multi-hundred-megabyte database download; choose
@@ -83,7 +92,9 @@ with RBPfinder. The host is Stenotrophomonas maltophilia. EBI remote Stage 2 is 
 
 ```
 Organisms   tailed dsDNA bacteriophages (Caudoviricetes) only
-Platform    Windows validated; Linux and macOS not yet validated on a real target
+Platform    Windows validated end-to-end; Linux runs core analysis (Mode A, offline
+            tests) and adds local Foldseek structure search; a full Linux benchmark
+            is not yet run
 Output      prioritised experimental candidates -- not validated biology
 ```
 

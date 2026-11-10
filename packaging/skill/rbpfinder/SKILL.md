@@ -49,6 +49,15 @@ rbpfinder --genbank <file> --phage-id <id> --out <output-dir>
 
 Useful additions:
 
+- `--foldseek-db pdb100=<path> --prostt5-model <dir>` (Linux) — run **local Foldseek**
+  structure search, family T, on this machine. This is the highest-value option for
+  accuracy: the T family is what lifts a real RBP to R1 and what separates a binder from
+  an apparatus protein, and locally it costs no tokens and transmits nothing (ProstT5
+  predicts the structure from sequence; nothing is uploaded). Needs the `foldseek`
+  executable (`--foldseek` or `$RBPFINDER_FOLDSEEK`), a structure database, and the
+  ProstT5 weights — run `rbpfinder doctor` and confirm `Local Stage 3 AVAILABLE` first.
+  Foldseek has no native Windows build, so this is Linux-only; on Windows, structural
+  evidence stays on the manual web route. See `references/USER_GUIDE.md` §4a.
 - `--host "<Genus species>"` — the bacterial host. A configured host database is used
   only when it covers this organism; otherwise it is skipped and the reason recorded.
 - `--host-taxid <id>` — required for a remote host search. RBPfinder never guesses a
@@ -79,7 +88,11 @@ to trust the run.
 
 A single run tells you what is worth testing. It does not, by itself, tell you what is
 independently corroborated — that usually needs HHpred, AlphaFold or Foldseek results a
-person has to submit by hand, since those default to manual handoff. When the user wants a
+person has to submit by hand, since those default to manual handoff. The exception is
+**local Foldseek on Linux** (above): when it is configured, family-T structural evidence
+is produced inside the run itself, so many candidates are already corroborated before any
+manual step. Check `Local Stage 3` in `rbpfinder doctor` before falling back to the
+manual loop for structure. When the user wants a
 Primary or Rescue candidate actually resolved — not just left at its tier — follow
 `references/INTERACTIVE_CONFIRMATION.md`: propose what's missing from the batch files
 `rbpfinder run` already wrote, get the raw result back (manual by default; automated only

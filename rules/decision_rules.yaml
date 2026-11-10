@@ -1442,6 +1442,37 @@ stage3:
     reuse: stage2.annotation_term_map
     applied_to: "the Foldseek target's DESCRIPTION, not its accession"
 
+  # Local Foldseek executor (provider id `local_foldseek`, already registered in
+  # data_policy.provider_registry as kind=local_search, transmits=false). It runs
+  # `foldseek easy-search` with the ProstT5 weights, so an amino-acid FASTA is searched
+  # directly against a local structure database with no AlphaFold step and nothing sent
+  # off the machine. The ProstT5 path is the same one phold already relies on.
+  #
+  # The result is normalised into the SAME shape the Foldseek web JSON parser
+  # (rbpfinder/parse/foldseek.py) returns and registered under manifest kind
+  # `foldseek_json`, so structural.build is the single reading for both routes -- the
+  # one-artefact-one-reading discipline the import path already enforces.
+  local_foldseek:
+    subcommand: easy-search
+    # The format-output columns, in order, that the executor requests and the normaliser
+    # reads positionally. Changing this list is the only place the column contract lives.
+    format_output: [query, target, theader, prob, evalue, bits, fident,
+                    qstart, qend, tstart, tend, qlen, taxname]
+    # The db label attached to every hit MUST be one of stage3.functional_databases or
+    # stage3.apparatus_only_databases, because structural.consensus filters on it. A
+    # database configured under any other label would be searched and then silently
+    # dropped, so the executor refuses an unknown label rather than wasting the search.
+    db_label_must_be_known: true
+    default_sensitivity: 9.5
+    min_prob_kept: 0.0
+    empty_result_is_searched_no_hit: true
+    searched_no_hit_note: >
+      a CDS searched against a configured structure database with no hit gets an
+      artefact with an empty results array, never a missing file -- searched-no-hit and
+      never-searched stay distinguishable on disk, exactly as the local BLAST route keeps
+      a zero-byte outfmt-6 file.
+    transmits: false
+
   # AF3 geometry is a shape heuristic and can never, on its own, mean receptor binding.
   # Elongated + trimeric describes an Ig adapter rod and a collagen fibre just as well as
   # a real RBP, so allowing it would systematically promote the hard negatives.
@@ -6212,8 +6243,15 @@ bulk_local_evidence_mode:
         a platform wall, the same shape AlphaFold's GPU requirement already is.
     - family: structural
       provider: foldseek
-      bulk_capable: manual_only
-      note: same platform wall as hhpred, already documented for this provider elsewhere
+      bulk_capable: local_or_manual
+      note: >
+        the Windows-era note here called this a platform wall "the same shape AlphaFold's
+        GPU requirement already is". That was true only on Windows. Foldseek has a native
+        Linux build, and with the ProstT5 weights it searches an amino-acid query directly
+        with no AlphaFold step -- so on the Linux target the `local_foldseek` provider
+        (kind=local_search, transmits=false) runs structure search inline, no web handoff
+        and no tokens spent driving one. The manual web route still exists for a machine
+        without a local install; it is no longer the only route.
     - family: structural
       provider: alphafold
       bulk_capable: manual_only

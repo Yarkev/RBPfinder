@@ -11,20 +11,25 @@ sheath, baseplate, an explicit fibre/spike) opens a full window, while a generic
 If all anchors fail the channel is ABANDONED with a warning; it never degrades
 to "start at CDS1", which is how the v0 awk labelled portal and major head
 protein as accessory RBP candidates.
+
+Short gene-name anchors (`Tal`, `Dit`) are matched as whole tokens, using the same
+`stage2.annotation_term_map.token_match_terms` list the homolog reader uses. As plain
+substrings they made "meTALlopeptidase", "caTALytic subunit" and "RNA eDITing protein"
+STRONG tail anchors, each opening a full window in the middle of a replication module.
 """
+from ..evidence import terms as _terms
 
 
-def _hits(product, terms):
-    p = (product or "").lower()
-    return [t for t in terms if str(t).lower() in p]
+def _hits(product, terms, token_terms=()):
+    return _terms._has(product, terms, token_terms)
 
 
-def _classify(product, strong, weak, boundary):
-    if _hits(product, boundary):
+def _classify(product, strong, weak, boundary, token_terms=()):
+    if _hits(product, boundary, token_terms):
         return "boundary"
-    if _hits(product, strong):
+    if _hits(product, strong, token_terms):
         return "strong"
-    if _hits(product, weak):
+    if _hits(product, weak, token_terms):
         return "weak"
     return None
 
@@ -40,8 +45,11 @@ def run(cds_rows, rules):
     ext_kb = rules.get(base + ".window_extension_kb")
     truncate = rules.get(base + ".boundary_truncates_window")
 
+    token_terms = rules.get("stage2.annotation_term_map.token_match_terms")
+
     n = len(cds_rows)
-    kinds = [_classify(r["product"], strong, weak, boundary) for r in cds_rows]
+    kinds = [_classify(r["product"], strong, weak, boundary, token_terms)
+             for r in cds_rows]
     anchor_idx = [i for i, k in enumerate(kinds) if k in ("strong", "weak")]
 
     if not anchor_idx:

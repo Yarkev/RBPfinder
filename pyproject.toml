@@ -17,6 +17,9 @@ dependencies = [
     "biopython>=1.80",
 ]
 
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
 [project.scripts]
 rbpfinder = "rbpfinder.cli:main"
 
@@ -43,3 +46,6 @@ packages = [
 
 [tool.setuptools.package-data]
 "rbpfinder.rules" = ["*.yaml", "*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

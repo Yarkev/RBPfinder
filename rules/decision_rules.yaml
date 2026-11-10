@@ -1711,7 +1711,14 @@ stage4:
                                 transcription, nucleotide]
     supports_structural_only: [tail tube, tail sheath, major tail, baseplate, head-tail adaptor,
                                connector, tail protein, internal virion protein,
-                               structural protein, ig domain]
+                               structural protein, ig domain,
+                               # helper head nouns -- the `compound_title_helper` regression
+                               # class. Without these "tail fiber assembly protein" matched
+                               # only `tail fiber`, so the conservative rule had nothing to
+                               # resolve to and the chaperone read as receptor-binding.
+                               # Same terms stage2.annotation_term_map already holds.
+                               tail assembly, fiber assembly, fibre assembly,
+                               assembly chaperone, fiber chaperone, fibre chaperone]
     _default: uninformative
   direction_precedence: [supports_receptor_binding, supports_non_rbp_identity, supports_structural_only]
 

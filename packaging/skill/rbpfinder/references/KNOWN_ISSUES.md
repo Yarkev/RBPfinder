@@ -170,6 +170,29 @@ E4 扩大可达状态集合
 外包络本身没有被删掉，但降级为**仅供显示**的摘要：它不得作为 EvidenceRecord 的
 canonical region，也不得进入 tier / family / role / 定位真值（见 `hull_principle`）。
 
+## 9. 产物名匹配的两处缺陷 — 已修复，**尚未在 48 株 benchmark 上重跑**
+
+两处都会让"找的不准"，而且都与既有规则自己的表述相矛盾：
+
+```
+C1 / C2 把 `Tal`、`Dit` 当子串匹配
+  "meTALlopeptidase" / "caTALytic subunit" / "RNA eDITing protein" → C1 强锚点，
+  在复制模块中间开出完整窗口；"porTAL protein" 被 C2 提名
+  → 候选池虚胖、unresolved 区段被高估
+  修法：与 terms.py 相同，按 stage2.annotation_term_map.token_match_terms 做整词匹配
+
+"tail fiber assembly protein" 读成 supports_receptor_binding
+  direction_map 里没有任何 helper 词，保守规则无从触发，
+  伴侣蛋白与真正的尾丝一起进入 Primary（compound_title_helper 回归类）
+  修法：structural_only 增加 tail assembly / fiber assembly / assembly chaperone /
+        fiber chaperone（及 fibre 拼写）
+```
+
+**这会改变 tier 与 Primary/Rescue。** 仓库内只有 `tests/` 里的词表回归与一株合成基因组的
+端到端测试；它们证明缺陷已不再出现，不证明 benchmark 指标没有回退。发布前必须在
+完整闸门链上重跑。已知需要留意的一类：T2/T6 类噬菌体的 gp38 是真正的 adhesin，
+若其产物名恰为 "tail fiber assembly protein" 而不含 adhesin/receptor 字样，会被读成结构性。
+
 ## 不属于缺陷的行为
 
 以下是设计选择，不要当成 bug 报：

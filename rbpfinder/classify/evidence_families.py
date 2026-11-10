@@ -28,7 +28,7 @@ def _phold_hit_is_phrog_derived(records, rules):
 def _pdb_id(raw):
     """Normalise a PDB-ish identifier: 9RQI_C and 9rqi-assembly1.cif.gz_C -> 9rqi."""
     hit = str((raw or {}).get("hit_id") or "")
-    head = re.split(r"[-_.]", hit, 1)[0].lower()
+    head = re.split(r"[-_.]", hit, maxsplit=1)[0].lower()
     return head if re.fullmatch(r"[0-9][a-z0-9]{3}", head) else None
 
 

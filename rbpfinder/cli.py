@@ -392,9 +392,12 @@ def run(args):
         else:
             explicit_dbs = _parse_foldseek_dbs(args.foldseek_db)
             prostt5 = args.prostt5_model or os.environ.get("RBPFINDER_PROSTT5_MODEL")
+            # Default to the nominated pool: structure is candidate-scoped elsewhere, and
+            # on a GPU-less machine running ProstT5 over the whole genome is wasteful.
+            restrict = None if args.foldseek_all_cds else set(channels_by_id)
             s3_rows, s3_prov = stage3_local.prepare(
                 cds, rules, fs_cap, args.out, prostt5_model=prostt5,
-                explicit_dbs=explicit_dbs, env=os.environ)
+                explicit_dbs=explicit_dbs, env=os.environ, restrict_ids=restrict)
             stage3_prov.update(s3_prov)
             for r in s3_rows:
                 manifest.add(r["cds_id"], r["kind"], r["path"])
@@ -1179,6 +1182,10 @@ def main(argv=None):
                         "$RBPFINDER_PROSTT5_MODEL")
     p.add_argument("--no-local-stage3", action="store_true",
                    help="do not run local Foldseek even if it is configured")
+    p.add_argument("--foldseek-all-cds", action="store_true",
+                   help="run local Foldseek on every CDS, not just the nominated pool. "
+                        "Slower (ProstT5 is CPU-bound without a GPU) and changes no "
+                        "conclusion; off by default")
     p.add_argument("--no-local-stage2", action="store_true",
                    help="do not search configured databases (fixtures, quick smokes, "
                         "reproduction runs)")

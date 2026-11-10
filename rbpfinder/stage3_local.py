@@ -98,16 +98,25 @@ def resolve_structure_databases(rules, env=None, explicit=None):
 
 
 def prepare(cds_rows, rules, capability, outdir, prostt5_model=None, env=None,
-            explicit_dbs=None, sensitivity=None):
+            explicit_dbs=None, sensitivity=None, restrict_ids=None):
     """Search the configured structure databases; return (rows, provenance).
 
     `rows` is a list of {cds_id, kind: 'foldseek_json', path} the caller adds to the run
     manifest. Returns ([], provenance) when no database applies -- the core analysis still
     completes and the provenance says why, exactly as Stage 2 does.
+
+    `restrict_ids`, when given, limits the search to those CDS. Structure is the expensive
+    evidence and, unlike BLAST, is treated as candidate-scoped everywhere else in the
+    product (the AF3 and Foldseek manual batches are the nominated candidates, not the
+    genome). Scoping the local search the same way bounds the ProstT5 cost on a machine
+    with no GPU without changing any conclusion: a CDS no channel nominated is not an RBP
+    region and would contribute a `not_run` family-T record either way. None means every
+    CDS with a translation.
     """
     use, decisions = resolve_structure_databases(rules, env=env, explicit=explicit_dbs)
     prov = {"decisions": decisions, "databases_used": [d.label for d in use],
-            "artifact_dir": None, "prostt5_model": prostt5_model}
+            "artifact_dir": None, "prostt5_model": prostt5_model,
+            "scope": "all_cds" if restrict_ids is None else "nominated_pool"}
 
     fatal = [d for d in decisions if d.get("fatal")]
     if fatal:
@@ -119,7 +128,8 @@ def prepare(cds_rows, rules, capability, outdir, prostt5_model=None, env=None,
         prov["reason"] = "no applicable structure database; local Stage 3 did not run"
         return [], prov
 
-    recs = [r for r in cds_rows if r.get("translation")]
+    recs = [r for r in cds_rows if r.get("translation")
+            and (restrict_ids is None or r["cds_id"] in restrict_ids)]
     art_dir = pathlib.Path(outdir) / "stage3_local"
     art_dir.mkdir(parents=True, exist_ok=True)
 

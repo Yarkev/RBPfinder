@@ -144,6 +144,21 @@ def test_searched_no_hit_is_written_not_omitted(fake_foldseek, rules, tmp_path):
     assert prov["cds_with_hits"] == 0
 
 
+def test_scope_restricts_search_to_nominated_pool(fake_foldseek, rules, tmp_path):
+    """restrict_ids limits the (CPU-bound, GPU-less) ProstT5 work to candidate CDS."""
+    cds = [{"cds_id": "P_CDS_%04d" % i, "translation": "M" + "A" * 99, "length_aa": 100}
+           for i in range(1, 6)]
+    (tmp_path / "db").mkdir()
+    (tmp_path / "db" / "pdb100.dbtype").write_text("x")
+    rows, prov = stage3_local.prepare(
+        cds, rules, FoldseekCapability(foldseek=str(fake_foldseek)), str(tmp_path),
+        prostt5_model=str(tmp_path / "prostt5"),
+        explicit_dbs=[("pdb100", str(tmp_path / "db" / "pdb100"))],
+        restrict_ids={"P_CDS_0002", "P_CDS_0004"})
+    assert {r["cds_id"] for r in rows} == {"P_CDS_0002", "P_CDS_0004"}
+    assert prov["scope"] == "nominated_pool"
+
+
 def test_unknown_db_label_is_refused(rules, tmp_path):
     (tmp_path / "db").mkdir()
     (tmp_path / "db" / "weird.dbtype").write_text("x")

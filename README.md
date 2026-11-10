@@ -88,6 +88,10 @@ rbpfinder --genbank phage_X.gbk --phage-id X --out runs/X
 Or, once the skill is installed, ask an agent in plain language: *"Analyse phage_X.gbk
 with RBPfinder. The host is Stenotrophomonas maltophilia. EBI remote Stage 2 is allowed."*
 
+To drive it from a **Biomni** hosted sandbox (a custom tool plus a one-shot setup that
+installs Foldseek and the structure database for local Stage 3), see
+`packaging/biomni/README.md`.
+
 ## Scope and limits
 
 ```

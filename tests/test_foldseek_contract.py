@@ -328,3 +328,43 @@ def test_a2_no_longer_raises_when_the_probe_says_yes(rules):
         structural_tophits={"T_CDS_0002": "8dsp-assembly1_E"})
     assert exec_state["A2"]["executable"] is True
     assert any(h["audit_id"] == "A2" and h["cds_id"] == "T_CDS_0002" for h in hits)
+
+
+# ------------------- the ML branch is dormant today; pin it so wiring C6 is wiring only
+
+def test_no_channel_produces_ml_results_today():
+    """Guards the claim the code makes about itself: C6 is specified, not implemented.
+
+    If this starts failing, a producer appeared and the dormancy notes in
+    completeness.py and cli.py need removing.
+    """
+    import pathlib as _pl
+    import re as _re
+    root = _pl.Path(__file__).resolve().parent.parent / "rbpfinder"
+    # An assignment or a keyword pass, not a mention: the dormancy notes themselves
+    # name the variable, and a comment is not a producer.
+    produced = _re.compile(r"ml_results\s*=")
+    producers = [p.name for p in root.rglob("*.py")
+                 if p.name != "completeness.py"
+                 and produced.search(p.read_text(encoding="utf-8"))]
+    assert producers == [], "ml_results now has a producer: %s" % producers
+    assert not (root / "nominate" / "c6_external_ml.py").exists()
+
+
+def test_a2_ml_branch_works_when_it_is_eventually_wired(rules):
+    """Dormant, but correct: an out-of-pool ML nomination is an A2 hit."""
+    cds = [{"cds_id": "T_CDS_0001", "tophit_protein": None},
+           {"cds_id": "T_CDS_0002", "tophit_protein": None}]
+    hits = completeness.a2_context_negative_signal_positive(
+        cds, {"T_CDS_0001"}, rules, ml_results=["T_CDS_0001", "T_CDS_0002"])
+    assert [h["cds_id"] for h in hits] == ["T_CDS_0002"]   # the pooled one is skipped
+    assert "machine-learning" in hits[0]["why_flagged"]
+
+
+def test_a2_does_not_double_flag_a_cds_with_both_signals(rules):
+    cds = [{"cds_id": "T_CDS_0002", "tophit_protein": "8dsp-assembly1_E"}]
+    hits = completeness.a2_context_negative_signal_positive(
+        cds, set(), rules,
+        structural_tophits={"T_CDS_0002": "7ung-assembly1_o1"},
+        ml_results=["T_CDS_0002"])
+    assert len(hits) == 1

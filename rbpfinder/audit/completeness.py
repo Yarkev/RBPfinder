@@ -94,6 +94,13 @@ def a2_context_negative_signal_positive(cds_rows, pool, rules, structural_tophit
     Until now this body did not exist, because the probe could never return True: it read
     only `tophit_protein`, which only a phold TSV import fills. A NotImplementedError
     guard stood here so that enabling the probe could not silently report A2 as passed.
+
+    `ml_results` is DORMANT, not live. The rules specify a C6 external-ML channel and the
+    M family, but no channel produces them and `run_cycle`'s caller passes nothing, so
+    this branch -- and the matching one in `genome_wide_T_or_M_available` -- is
+    unreachable today. It is written and tested so that wiring C6 is a wiring job rather
+    than a design job, and it is recorded here so no reader concludes that ML signal is
+    being used.
     """
     rc = rules.get("stage6.reason_classes.A2")
     pattern = rules.get("evidence_families.structure_database_tophit_pattern")

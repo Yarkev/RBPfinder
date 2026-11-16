@@ -535,6 +535,10 @@ def run(args):
         # conclusion": it changes what the audit can RUN, never the pool or the tiers.
         a2_structural = (stage3_prov.get("tophits")
                          if stage3_prov.get("scope") == "all_cds" else None)
+        # `ml_results` is deliberately not passed: the rules specify a C6 external-ML
+        # channel and an M family, but no channel implements them, so there is nothing
+        # to pass. A2 and the capability probe both accept it and both have a tested
+        # branch for it; wiring C6 means supplying it here, and nothing else.
         hits, exec_state = completeness.run_cycle(
             cds, pool, cands, rules, is_circular=is_circular, c5_result=c5,
             structural_tophits=a2_structural

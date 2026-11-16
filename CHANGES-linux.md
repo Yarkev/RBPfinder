@@ -302,7 +302,18 @@ PASS, exit 0.
 reopen-plus-cap mechanism working, but its effect on the benchmark has not been measured
 and should be before this is relied on.
 
-### 21. The know-how reference was stale
+### 21. The A2 ML branch is dormant, and now says so
+
+A2 and the capability probe both accept `ml_results`, and both have a branch for it. No
+channel produces it: the rules specify a C6 external-ML channel and the M family, but
+`nominate/` has no `c6_*` module and nothing passes the argument, so both branches are
+unreachable today. Independently confirmed during verification.
+
+They are kept, tested and documented at both sites rather than deleted, so that wiring C6
+is a wiring job and not a design job. A test asserts the dormancy itself -- it fails if a
+producer appears, which is the signal to remove the notes.
+
+### 22. The know-how reference was stale
 
 `references/KNOW_HOW.md` still described a Python API (`rbpfinder_workflow_plan`,
 `check_annotation`, `run_rbpfinder`) that was removed when the `add_tool` layer went, told

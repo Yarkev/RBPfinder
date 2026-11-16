@@ -74,6 +74,65 @@ def genome_wide_T_or_M_available(cds_rows, rules, ml_results=None,
     )
 
 
+def a2_context_negative_signal_positive(cds_rows, pool, rules, structural_tophits=None,
+                                        ml_results=None):
+    """A2 -- the scan the capability probe gates.
+
+    The YAML states the question: "genome-wide, which CDS have positive structural
+    (Phold/Foldseek) or ML signal but negative positional signal?" -- the scattered-RBP
+    miss that C1 and C4 structurally cannot see, because both reason from position and
+    this asks about CDS that position never reached.
+
+    So the test is exactly: outside pool P, and carrying a hit that the structure-database
+    whitelist accepts. The whitelist is the same one the probe applies, for the same
+    reason: a sequence-derived target would double-count a datum that already sits in D.
+
+    A hit REOPENS the pool; it does not assign anything. Whether a reopened CDS then
+    earns a tier is the ordinary classify pass's answer, and it is free to come back
+    unchanged -- `absence_is_not_counter_evidence` cuts both ways.
+
+    Until now this body did not exist, because the probe could never return True: it read
+    only `tophit_protein`, which only a phold TSV import fills. A NotImplementedError
+    guard stood here so that enabling the probe could not silently report A2 as passed.
+    """
+    rc = rules.get("stage6.reason_classes.A2")
+    pattern = rules.get("evidence_families.structure_database_tophit_pattern")
+    hits = []
+
+    def _flag(cds_id, source, target):
+        hits.append({
+            "audit_id": "A2",
+            "cds_id": cds_id,
+            "reason_class": rc,
+            "why_flagged": "%s signal (%s) with no positional support: never entered "
+                           "pool P" % (source, target),
+        })
+
+    seen = set()
+    for rec in cds_rows:
+        cid = rec["cds_id"]
+        if cid in pool:
+            continue
+        target = rec.get("tophit_protein")
+        if target and re.match(pattern, str(target)):
+            _flag(cid, "genome-wide structural", target)
+            seen.add(cid)
+
+    for cid, target in sorted((structural_tophits or {}).items()):
+        if cid in pool or cid in seen or not target:
+            continue
+        if re.match(pattern, str(target)):
+            _flag(cid, "genome-wide structural", target)
+            seen.add(cid)
+
+    for cid in sorted(ml_results or ()):
+        if cid not in pool and cid not in seen:
+            _flag(cid, "machine-learning", "ML nomination")
+            seen.add(cid)
+
+    return hits
+
+
 def a1_module_sweep(cds_rows, pool, rules):
     rc = rules.get("stage6.reason_classes.A1")
     hits = []
@@ -278,10 +337,9 @@ def run_cycle(cds_rows, pool, candidates, rules, is_circular, ml_results=None,
     if exec_state["A4"]["executable"]:
         hits.extend(a4_variable_locus_accounting(pool, c5_result, rules))
     if a2_ok:
-        raise NotImplementedError(
-            "A2 became executable (a genome-wide T/M source appeared) but the scan is not "
-            "implemented; refusing to report A2 as passed"
-        )
+        hits.extend(a2_context_negative_signal_positive(
+            cds_rows, pool, rules, structural_tophits=structural_tophits,
+            ml_results=ml_results))
     return hits, exec_state
 
 

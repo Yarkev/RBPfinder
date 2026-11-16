@@ -252,6 +252,66 @@ recovers the same CDS by another route. Measured on a rotated T7: CDS 0044/0045 
 
 ---
 
+## Corrections from the verification round (2026-11-16, second pass)
+
+Two of the fixes above were wrong, and both were found by running the real thing again.
+
+### 19. The taxonomy check refused the official PDB database (regression in item 16)
+
+Item 16 required `<prefix>_mapping`, `_nodes.dmp`, `_names.dmp` and `_merged.dmp`, on the
+strength of a source comment asserting that `foldseek databases` shipped them. **It does
+not, and the assertion had never been verified -- it was an assumption written as a
+fact.** The official download ships a single `<prefix>_taxonomy` file (741 MB for PDB),
+which a real run had already resolved `taxname` from.
+
+The result was worse than the false positive item 16 removed: the official database was
+refused with exit 2 before any search could run. The check now accepts either shape --
+the single file, or the four-file `.dmp` set a hand-built database would need -- and
+refuses only a database with neither.
+
+The four `.dmp` names came from the error message a hand-built database produced. That
+names what foldseek *looked for*, not what a valid database must *have*; the two were
+conflated.
+
+### 20. Enabling the A2 probe walked into an unimplemented scan (incomplete item 15)
+
+Item 15 made the A2 capability probe able to return True for the first time. The audit
+body behind it had never been written, and a guard stood there for exactly this case:
+
+    if a2_ok:
+        raise NotImplementedError(
+            "A2 became executable (a genome-wide T/M source appeared) but the scan is
+             not implemented; refusing to report A2 as passed")
+
+So the fix turned an honest "unexecutable" into an exit-1 crash. The guard was doing its
+job; the mistake was enabling the gate without checking what lay behind it.
+
+`a2_context_negative_signal_positive` now implements the question the rules state: CDS
+outside pool P carrying a hit the structure-database whitelist accepts, plus ML
+nominations where present. A hit reopens the pool and assigns nothing; whether a reopened
+CDS earns a tier is the ordinary classify pass's answer, and it is free to come back
+unchanged.
+
+Verified end to end on T7 with `--foldseek-all-cds` against the real PDB database:
+`not_executable_due_to_missing_genomewide_T_or_M` is gone, assessment coverage moves from
+`reduced` to `full`, A2 flags 28 CDS, one reopen cycle, all reopened candidates come back
+`reopened_and_downgraded` (honestly low, nothing inflated), terminated cleanly, schema
+PASS, exit 0.
+
+**Not yet measured:** the pool grows from 21 to 49 CDS on that run. That is the designed
+reopen-plus-cap mechanism working, but its effect on the benchmark has not been measured
+and should be before this is relied on.
+
+### 21. The know-how reference was stale
+
+`references/KNOW_HOW.md` still described a Python API (`rbpfinder_workflow_plan`,
+`check_annotation`, `run_rbpfinder`) that was removed when the `add_tool` layer went, told
+the agent that locus tags must end in `CDS_<number>`, and described remote EBI BLAST as
+available-but-off. All three were wrong for this build, and the file had been deployed.
+Rewritten against what the build actually does.
+
+---
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend

@@ -45,18 +45,38 @@ def _db_prefix_usable(path):
     return False
 
 
-# The files foldseek needs beside a database before it will answer a `taxname` query.
-# A database built by hand from PDB files has none of them, and easy-search then dies at
-# run time naming the missing one -- after the search has already been set up. Verified
-# against a hand-built three-entry database on 2026-11-16; the official
-# `foldseek databases PDB ...` download ships them.
-TAXONOMY_SUFFIXES = ("_mapping", "_nodes.dmp", "_names.dmp", "_merged.dmp")
+# Taxonomy comes in TWO shapes and this check used to know only one of them.
+#
+# A database downloaded by `foldseek databases` ships a single `<prefix>_taxonomy` file
+# (741 MB for PDB), and that is sufficient -- a real run resolved `taxname` from it.
+# A database built by hand from PDB files has no taxonomy at all, and easy-search then
+# dies at run time naming the files it wanted: `_mapping`, `_nodes.dmp`, `_names.dmp`,
+# `_merged.dmp`.
+#
+# The first version of this check required that four-file set and nothing else, on the
+# strength of a comment claiming the official download shipped it. It does not, and the
+# claim was never verified -- it was an assumption written as a fact. The result was
+# worse than the false positive it replaced: the official PDB database was refused with
+# exit 2 before any search could run. Verified 2026-11-16 against both shapes.
+TAXONOMY_SINGLE_SUFFIX = "_taxonomy"
+TAXONOMY_DMP_SUFFIXES = ("_mapping", "_nodes.dmp", "_names.dmp", "_merged.dmp")
+
+# Kept as the name the tests and doctor import; it names the fallback shape.
+TAXONOMY_SUFFIXES = TAXONOMY_DMP_SUFFIXES
 
 
 def taxonomy_missing(path):
-    """Which taxonomy files this database prefix lacks. Empty when it is complete."""
-    return [s for s in TAXONOMY_SUFFIXES
-            if not pathlib.Path(str(path) + s).exists()]
+    """Which taxonomy files this database prefix lacks. Empty when it is usable.
+
+    Either shape satisfies it: the single `<prefix>_taxonomy` file that
+    `foldseek databases` produces, or the four-file `.dmp` set. Only a database with
+    neither is refused.
+    """
+    if pathlib.Path(str(path) + TAXONOMY_SINGLE_SUFFIX).exists():
+        return []
+    missing = [s for s in TAXONOMY_DMP_SUFFIXES
+               if not pathlib.Path(str(path) + s).exists()]
+    return [] if not missing else missing
 
 
 def needs_taxonomy(rules):
@@ -115,11 +135,14 @@ def resolve_structure_databases(rules, env=None, explicit=None):
             decisions.append({
                 "label": label, "used": False, "reason": "missing_taxonomy",
                 "path": path, "fatal": True,
-                "detail": "the database at %s has no taxonomy files (%s). The column "
-                          "contract requests `taxname`, and easy-search fails at run "
-                          "time against a database without them. Use a database "
-                          "downloaded by `foldseek databases`, which ships them."
-                          % (path, ", ".join("<prefix>" + s for s in missing))})
+                "detail": "the database at %s has no taxonomy: neither <prefix>%s nor "
+                          "the %s set. The column contract requests `taxname`, and "
+                          "easy-search fails at run time against a database without it. "
+                          "Use a database downloaded by `foldseek databases`, which "
+                          "ships <prefix>%s."
+                          % (path, TAXONOMY_SINGLE_SUFFIX,
+                             ", ".join("<prefix>" + s for s in missing),
+                             TAXONOMY_SINGLE_SUFFIX)})
             continue
         decisions.append({"label": label, "used": True, "path": path,
                           "reason": "configured",

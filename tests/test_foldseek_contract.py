@@ -256,3 +256,75 @@ def test_identifier_is_not_duplicated_into_the_description(rules):
 def test_identifier_is_still_prepended_when_the_header_lacks_it(rules):
     aln = _aln(rules, "1abc_A", "Some crystal structure")
     assert aln["target"] == "1abc_A Some crystal structure"
+
+
+# ------------- taxonomy comes in two shapes; requiring only one blocked the real thing
+
+def test_official_single_file_taxonomy_is_accepted(rules, tmp_path):
+    """`foldseek databases` ships ONE <prefix>_taxonomy file, not the .dmp set.
+
+    The first version of this check demanded the four-file set on the strength of a
+    comment asserting the official download shipped it. It does not. The official PDB
+    database was then refused with exit 2 before any search could run -- a worse failure
+    than the false positive the check was added to remove.
+    """
+    root = tmp_path / "official"
+    root.mkdir()
+    (root / "pdb100.dbtype").write_text("x")
+    (root / ("pdb100" + stage3_local.TAXONOMY_SINGLE_SUFFIX)).write_text("x")
+    assert stage3_local.taxonomy_missing(root / "pdb100") == []
+    use, _ = stage3_local.resolve_structure_databases(
+        rules, explicit=[("pdb100", str(root / "pdb100"))])
+    assert [d.label for d in use] == ["pdb100"]
+
+
+def test_dmp_file_set_is_still_accepted(rules, tmp_path):
+    prefix = _make_db(tmp_path / "dmp", "pdb100", taxonomy=True)
+    assert stage3_local.taxonomy_missing(prefix) == []
+    use, _ = stage3_local.resolve_structure_databases(
+        rules, explicit=[("pdb100", str(prefix))])
+    assert [d.label for d in use] == ["pdb100"]
+
+
+def test_a_database_with_neither_shape_is_still_refused(rules, tmp_path):
+    prefix = _make_db(tmp_path / "none", "pdb100", taxonomy=False)
+    assert stage3_local.taxonomy_missing(prefix)
+    use, decisions = stage3_local.resolve_structure_databases(
+        rules, explicit=[("pdb100", str(prefix))])
+    assert use == []
+    assert decisions[0]["reason"] == "missing_taxonomy"
+
+
+# ------------------------------------- A2's scan body, which the probe gates
+
+def test_a2_scan_flags_out_of_pool_cds_with_a_structural_hit(rules):
+    """The scattered-RBP miss C1 and C4 structurally cannot see."""
+    cds = [{"cds_id": "T_CDS_%04d" % i, "product": "hypothetical protein",
+            "function": "unknown function", "tophit_protein": None}
+           for i in range(1, 5)]
+    pool = {"T_CDS_0001"}
+    hits = completeness.a2_context_negative_signal_positive(
+        cds, pool, rules,
+        structural_tophits={"T_CDS_0001": "7ung-assembly1_o1",     # in pool: skip
+                            "T_CDS_0003": "8dsp-assembly1_E",      # flag
+                            "T_CDS_0004": "WP_000123"})            # not a structure hit
+    assert [h["cds_id"] for h in hits] == ["T_CDS_0003"]
+    assert hits[0]["audit_id"] == "A2"
+    assert hits[0]["reason_class"] == rules.get("stage6.reason_classes.A2")
+
+
+def test_a2_no_longer_raises_when_the_probe_says_yes(rules):
+    """A NotImplementedError guard stood here so that enabling the probe could not
+    silently report A2 as passed. Enabling it without the scan turned an honest
+    'unexecutable' into a crash."""
+    cds = [{"cds_id": "T_CDS_0001", "product": "tail fiber protein",
+            "function": "tail", "tophit_protein": None,
+            "start_nt": 1, "end_nt": 300, "length_aa": 100},
+           {"cds_id": "T_CDS_0002", "product": "hypothetical protein",
+            "function": "unknown function", "tophit_protein": None,
+            "start_nt": 400, "end_nt": 700, "length_aa": 100}]
+    hits, exec_state = completeness.run_cycle(
+        cds, {"T_CDS_0001"}, [], rules, is_circular=False,
+        structural_tophits={"T_CDS_0002": "8dsp-assembly1_E"})
+    assert exec_state["A2"]["executable"] is True
+    assert any(h["audit_id"] == "A2" and h["cds_id"] == "T_CDS_0002" for h in hits)

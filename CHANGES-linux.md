@@ -128,9 +128,15 @@ that cannot work. `--json` for machine consumption.
 
 ### 8. Biomni integration (`packaging/biomni/`)
 
-Three `add_tool`-compatible tools — plan the route with the user (fast vs accurate,
-default fast), check the annotation, run the analysis — plus a know-how document and an
-idempotent `/workspace` setup script. Biomni annotates; RBPfinder classifies.
+A skill package (`skill/rbpfinder/SKILL.md` + `KNOW_HOW.md`) for
+`/mnt/results/skills/<slug>/`, which is what the hosted platform registers and what
+`check_skill` validates, plus an idempotent `/workspace` setup script. Biomni annotates
+(pharokka, and phold only when the user asks); RBPfinder classifies.
+
+An earlier iteration shipped an `agent.add_tool()` Python layer, written from the
+open-source Biomni `A1` source. That API is **not present in this platform's installed
+`biomni.tool`** — it raises `AttributeError` — so the layer was removed rather than left
+as dead code.
 
 ---
 

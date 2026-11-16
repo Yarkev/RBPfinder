@@ -7,7 +7,9 @@
 # MUST be re-fit once the benchmark exists.
 
 meta:
-  version: "1.0.0-spec"
+  # Kept in step with the package version on purpose: a run cites the rules version, and
+  # a spec number that never moved while the package did makes that citation useless.
+  version: "1.2.1-linux"
   scope: "Caudoviricetes"
   optimises: "complete-recall@K"
   provenance: "reverse-engineered from SMA phage work (SOP_v0.md); not yet calibrated"
@@ -1691,6 +1693,26 @@ evidence_families:
   # re-promote W073 CDS0004 (Ig adapter rod) and N136 CDS0100 (collagen stalk), both
   # standing hard negatives. The correct resolution is precedence:
   # ---------------------------------------------------------------------------
+  # Which record REPRESENTS a family when several survive de-correlation. The
+  # representative carries the family's direction into tiering, so this is a scientific
+  # choice, not a formatting one -- and it used to be made alphabetically by tool name:
+  # `hhpred` sorts before `pharokka_phrog`, so an apparatus reading from HHpred silently
+  # vetoed an equal-strength receptor-binding reading, which `dual_role_precedence`
+  # below forbids. Strength still decides first; this only replaces the arbitrary
+  # tie-break, and the tool name remains the final key so the result stays deterministic.
+  representative_direction_precedence:
+    - supports_non_rbp_identity      # a positive non-RBP assignment must never be hidden
+    - supports_receptor_binding      # never vetoed by a structural name
+    - supports_apparatus_membership
+    - supports_structural_only
+  representative_selection_is_not_the_whole_answer: >
+    one record per family carries BOTH "this family counts" and "what this family
+    supports". A family holding a receptor-binding record and a non-RBP record cannot
+    express that conflict through a single representative, even though
+    stage3.af3_priority treats such a conflict as a P1 trigger. Splitting the two
+    questions is a larger change and needs the benchmark; this ordering only removes the
+    arbitrariness.
+
   dual_role_precedence:
     rule: >
       direct experimental or structural receptor-binding evidence OVERRIDES an

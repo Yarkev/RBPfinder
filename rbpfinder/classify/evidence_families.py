@@ -73,11 +73,22 @@ def decorrelate(records, rules):
             continue
         by_family.setdefault(r["family"], []).append(r)
 
+    # The representative carries the family's DIRECTION into tiering, so the tie-break
+    # among equal-strength records is a scientific choice and lives in the rules. It used
+    # to be the tool name, which meant `hhpred` beat `pharokka_phrog` alphabetically and
+    # an apparatus reading vetoed an equal-strength receptor-binding one -- the veto
+    # `evidence_families.dual_role_precedence` forbids. Tool name stays as the final key
+    # so the choice is still deterministic.
+    dir_order = {d: i for i, d in enumerate(
+        rules.get("evidence_families.representative_direction_precedence"))}
+
     independent = []
     for fam in sorted(by_family):
         best = sorted(
             by_family[fam],
-            key=lambda r: (_STRENGTH_ORDER.get(r["strength"], 9), r["tool"]),
+            key=lambda r: (_STRENGTH_ORDER.get(r["strength"], 9),
+                           dir_order.get(r["direction"], len(dir_order)),
+                           r["tool"]),
         )[0]
         best["counts_as_independent"] = True
         independent.append(fam)

@@ -60,10 +60,15 @@ only). See `packaging/skill/rbpfinder/references/USER_GUIDE.md` for what to do n
 
 ## Two profiles
 
+> **This is the Linux/Biomni build.** Remote submission is disabled: `--allow-remote`,
+> `--data-policy remote_allowed` and `--stage2-backend ebi` are refused with exit code 2.
+> Sequences never leave the machine. On a server that can download Foldseek, a structure
+> database and a BLAST database, every evidence family is reachable locally, so nothing
+> is given up by refusing to transmit.
+
 | Profile | You need | Sequences leave the machine? |
 |---|---|---|
-| **remote** (default) | this repo, installed | yes — to EMBL-EBI, after an explicit disclosure and per-run authorization |
-| **local** | this repo + BLAST+ + a sequence database package | no |
+| **local** (default) | this repo + BLAST+ + a sequence database package | no |
 | **local + structure** (Linux) | the above + Foldseek + a structure DB + ProstT5 weights | no — structure is searched on the machine |
 
 The **local + structure** profile is the one to reach for when candidates come back
@@ -101,6 +106,13 @@ Platform    Windows validated end-to-end; Linux runs core analysis (Mode A, offl
             is not yet run
 Output      prioritised experimental candidates -- not validated biology
 ```
+
+**Input**: an annotated GenBank — pharokka output, or any annotated GenBank/RefSeq
+record with CDS `/translation` features. Check it in seconds with
+`rbpfinder validate-input --genbank <file>` before committing to a run. A locus tag that
+does not end in `CDS_<number>` is accepted: those CDS are numbered in genome coordinate
+order and the original tag is kept in `raw_locus_tag`. Because re-annotating a genome
+changes the CDS set, **artefacts from different annotation sources must not be mixed**.
 
 RBPfinder does not promise to find every real RBP in every phage. When the evidence is
 insufficient it says `completeness: limited` and explains why, rather than padding the

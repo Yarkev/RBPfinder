@@ -16,6 +16,22 @@ Short gene-name anchors (`Tal`, `Dit`) are matched as whole tokens, using the sa
 `stage2.annotation_term_map.token_match_terms` list the homolog reader uses. As plain
 substrings they made "meTALlopeptidase", "caTALytic subunit" and "RNA eDITing protein"
 STRONG tail anchors, each opening a full window in the middle of a replication module.
+
+Circular genomes: `decision_rules.yaml` requires circular adjacency for `c1_window`,
+because a tail module split across the origin must still form ONE window. C4 and the A3
+audit already honoured that; this channel did not, so an origin-spanning tail module
+produced two truncated windows that the linear merge (`lo <= hi + 1`) could never join.
+
+Implementation: the coordinate system is ROTATED so the cut falls in the largest circular
+gap between consecutive anchors -- by construction no anchor cluster straddles the cut,
+so the tested linear algorithm then runs unchanged in rotated space (indices may leave
+[0, n); every row access goes through `at()`, which is mod n) and the result is mapped
+back. The linear path is byte-for-byte the previous behaviour.
+
+Known limitation: window merging still happens in rotated linear space. If two windows
+BOTH extend across the cut they overlap on the circle without being merged. That needs
+the largest anchor-free gap to be smaller than the two extensions that reach into it,
+which is rare; the origin-splitting defect this fixes is not.
 """
 from ..evidence import terms as _terms
 
@@ -34,7 +50,29 @@ def _classify(product, strong, weak, boundary, token_terms=()):
     return None
 
 
-def run(cds_rows, rules):
+def _abandoned(rules, base):
+    return {
+        "nominated": set(),
+        "windows": [],
+        "clusters": 0,
+        "warning": rules.get(base + ".on_all_anchors_failed.emit_warning"),
+        "detail": "no anchor matched any product string",
+    }
+
+
+def run(cds_rows, rules, is_circular=False, genome_length=None):
+    """Nominate the tail-module window(s).
+
+    `is_circular` must be the RESOLVED circularity of the genome -- the GenBank's own
+    topology when the user did not override it -- not the raw command-line flag. A record
+    that declares itself circular and is analysed as linear silently loses this channel's
+    origin handling, which is the whole point of the fix.
+
+    `genome_length` is used for circular nt distances. It falls back to the largest CDS
+    end coordinate, which underestimates the genome slightly and therefore errs toward
+    extending the window -- the safe direction for a recall channel, but the real value
+    should be passed when the caller has it.
+    """
     base = "stage1.channels.C1_module_position"
     strong = rules.get(base + ".anchors_strong")
     weak = rules.get(base + ".anchors_weak")
@@ -53,17 +91,30 @@ def run(cds_rows, rules):
     anchor_idx = [i for i, k in enumerate(kinds) if k in ("strong", "weak")]
 
     if not anchor_idx:
-        return {
-            "nominated": set(),
-            "windows": [],
-            "clusters": 0,
-            "warning": rules.get(base + ".on_all_anchors_failed.emit_warning"),
-            "detail": "no anchor matched any product string",
-        }
+        return _abandoned(rules, base)
 
-    # --- cluster anchors by genomic distance, in CDS units
-    clusters, cur = [], [anchor_idx[0]]
-    for i in anchor_idx[1:]:
+    circular = bool(is_circular) and n > 1
+
+    # --- rotation offset: cut the circle at the largest circular gap between
+    # consecutive anchors, so no anchor cluster straddles the cut.
+    r = 0
+    if circular:
+        m = len(anchor_idx)
+        if m == 1:
+            r = anchor_idx[0] % n
+        else:
+            gaps = [(anchor_idx[(k + 1) % m] - anchor_idx[k]) % n for k in range(m)]
+            kmax = max(range(m), key=lambda k: gaps[k])
+            r = anchor_idx[(kmax + 1) % m] % n
+
+    def at(j):
+        """Rotated-space index -> original CDS index."""
+        return (r + j) % n
+
+    # --- cluster anchors by genomic distance, in CDS units (rotated space)
+    anchors_rot = sorted((a - r) % n for a in anchor_idx)
+    clusters, cur = [], [anchors_rot[0]]
+    for i in anchors_rot[1:]:
         if i - cur[-1] <= gap_cds:
             cur.append(i)
         else:
@@ -71,30 +122,55 @@ def run(cds_rows, rules):
             cur = [i]
     clusters.append(cur)
 
+    starts = [c["start_nt"] for c in cds_rows]
+    ends = [c["end_nt"] for c in cds_rows]
+    budget = int(ext_kb * 1000)
+    span = int(genome_length) if genome_length else (max(ends) if ends else 0)
+
     # --- one window per cluster
     raw_windows = []
     for cl in clusters:
-        has_strong = any(kinds[i] == "strong" for i in cl)
+        has_strong = any(kinds[at(i)] == "strong" for i in cl)
         ext = ext_strong if has_strong else ext_weak
         lo, hi = min(cl), max(cl)
 
-        # CDS-count extension and kb extension are applied as a UNION
-        lo_i, hi_i = max(lo - ext, 0), min(hi + ext, n - 1)
-        lo_nt = cds_rows[lo]["start_nt"] - int(ext_kb * 1000)
-        hi_nt = cds_rows[hi]["end_nt"] + int(ext_kb * 1000)
-        while lo_i > 0 and cds_rows[lo_i - 1]["end_nt"] >= lo_nt:
-            lo_i -= 1
-        while hi_i < n - 1 and cds_rows[hi_i + 1]["start_nt"] <= hi_nt:
-            hi_i += 1
+        if circular:
+            # CDS-count extension first (rotated indices may leave [0, n)), then the kb
+            # extension as a UNION, mirroring the linear semantics: a CDS joins the
+            # window when it lies within ext_kb of the cluster edge, measured circularly.
+            lo_i, hi_i = lo - ext, hi + ext
+            edge_nt = starts[at(lo)]
+            steps = 0
+            while steps < n and span:
+                if (edge_nt - ends[at(lo_i - 1)]) % span > budget:
+                    break
+                lo_i -= 1
+                steps += 1
+            edge_nt = ends[at(hi)]
+            steps = 0
+            while steps < n and span:
+                if (starts[at(hi_i + 1)] - edge_nt) % span > budget:
+                    break
+                hi_i += 1
+                steps += 1
+        else:
+            # CDS-count extension and kb extension are applied as a UNION
+            lo_i, hi_i = max(lo - ext, 0), min(hi + ext, n - 1)
+            lo_nt = starts[lo] - budget
+            hi_nt = ends[hi] + budget
+            while lo_i > 0 and ends[lo_i - 1] >= lo_nt:
+                lo_i -= 1
+            while hi_i < n - 1 and starts[hi_i + 1] <= hi_nt:
+                hi_i += 1
 
         # --- a boundary anchor ends the window; the cluster itself is never truncated
         if truncate:
             for j in range(lo - 1, lo_i - 1, -1):
-                if kinds[j] == "boundary":
+                if kinds[at(j)] == "boundary":
                     lo_i = j + 1
                     break
             for j in range(hi + 1, hi_i + 1):
-                if kinds[j] == "boundary":
+                if kinds[at(j)] == "boundary":
                     hi_i = j - 1
                     break
 
@@ -122,11 +198,11 @@ def run(cds_rows, rules):
     windows = []
     for w in merged:
         for k in range(w["lo"], w["hi"] + 1):
-            nominated.add(cds_rows[k]["cds_id"])
+            nominated.add(cds_rows[at(k)]["cds_id"])
         windows.append({
-            "start_cds": cds_rows[w["lo"]]["cds_id"],
-            "end_cds": cds_rows[w["hi"]]["cds_id"],
-            "n_cds": w["hi"] - w["lo"] + 1,
+            "start_cds": cds_rows[at(w["lo"])]["cds_id"],
+            "end_cds": cds_rows[at(w["hi"])]["cds_id"],
+            "n_cds": min(w["hi"] - w["lo"] + 1, n),
             "strength": w["strength"],
             "n_anchors": w["n_anchors"],
         })

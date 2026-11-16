@@ -181,6 +181,27 @@ def run(args):
     rules = Rules(rules_path)
     sch = schema_mod.load(schema_path)
 
+    # ---- Remote submission is DISABLED in this build -----------------------------
+    # The linux/biomni build ships local-search and import modes only: on a server that
+    # can download Foldseek, a structure database and a BLAST database, every evidence
+    # family is reachable locally, so nothing is given up by refusing to transmit.
+    # The check sits before any ingest or provider code -- a refused run must never
+    # reach a transport. DataPolicy below stays as a second, independent gate.
+    if getattr(args, "allow_remote", False):
+        raise InputValidationError(
+            "remote submission is disabled in this build (linux/biomni): "
+            "--allow-remote is not available. Run the local backend with a configured "
+            "BLAST database, or import existing results with --data-policy import_only.")
+    if getattr(args, "data_policy", None) == "remote_allowed":
+        raise InputValidationError(
+            "remote submission is disabled in this build (linux/biomni): "
+            "--data-policy remote_allowed is not available. Valid modes: private, "
+            "import_only.")
+    if getattr(args, "stage2_backend", None) == "ebi":
+        raise InputValidationError(
+            "remote submission is disabled in this build (linux/biomni): "
+            "--stage2-backend ebi is not available. Use --stage2-backend local.")
+
     # ---- Data policy: decided ONCE, right after Stage 0 ingest, then obeyed ----
     policy = DataPolicy(rules, mode=args.data_policy, run_authorised=args.allow_remote)
 
@@ -198,12 +219,31 @@ def run(args):
     # someone else's annotation service.
     annotation = None
     genbank_path = args.genbank
+
+    # An input path that does not exist is an INPUT error, not an internal one. Without
+    # this it surfaced as a bare FileNotFoundError traceback with exit 1 -- the "third
+    # shape" errors.py exists to prevent, and the code an agent reads as "tool bug"
+    # rather than "fix your path".
+    for flag, value in (("--genbank", args.genbank), ("--phold", args.phold),
+                        ("--fasta", getattr(args, "fasta", None)),
+                        ("--pharokka", args.pharokka),
+                        ("--stage2-manifest", args.stage2_manifest)):
+        if value and not pathlib.Path(value).exists():
+            raise InputValidationError(
+                "%s does not exist: %s" % (flag, value), path=str(value))
+
     if getattr(args, "fasta", None):
         _fasta_handoff(args, rules)                 # always raises
 
     if genbank_path:
+        # `args.circular or None`, deliberately. The flag defaults to False, and passing
+        # False as the override suppressed the reader's own `topology: circular`
+        # detection -- so a record that declares itself circular was analysed as linear
+        # and C1 never applied its origin handling. None means "no override; read the
+        # GenBank"; --circular still forces it on for records that omit the annotation.
         cds, ingest_meta = genbank_in.read(
-            genbank_path, phage_id=args.phage_id, is_circular=args.circular)
+            genbank_path, phage_id=args.phage_id,
+            is_circular=(True if args.circular else None))
         notes = ingest_meta["warnings"]
         input_mode = ingest_meta["input_mode"]
         gene_caller = ingest_meta["gene_caller"]
@@ -216,11 +256,19 @@ def run(args):
         input_mode = "B_raw_fasta"
         gene_caller = args.gene_caller
 
-    c1 = c1_context.run(cds, rules)
+    # The resolved circularity, not args.circular: a GenBank that declares
+    # `topology: circular` must get C1's origin handling even when the flag was omitted.
+    # `ingest_meta` carries the resolved value; Mode B (phold) has no topology to read,
+    # so it falls back to the flag.
+    is_circular = (ingest_meta.get("is_circular") if genbank_path
+                   else bool(args.circular))
+    c1 = c1_context.run(cds, rules, is_circular=is_circular,
+                        genome_length=(ingest_meta.get("genome_length")
+                                       if genbank_path else None))
     c2 = c2_keywords.run(cds, rules)
     c3 = c3_dark_matter.run(cds, rules, c1["nominated"])
     seeded = c1["nominated"] | c2["nominated"] | c3["nominated"]
-    c4 = c4_cluster.run(cds, rules, seeded, is_circular=args.circular)
+    c4 = c4_cluster.run(cds, rules, seeded, is_circular=is_circular)
 
     # ---- C5, comparative genomics ------------------------------------------
     # The capability now EXISTS in this executor, so "the user gave us nothing to
@@ -232,7 +280,7 @@ def run(args):
             args.comparative_cohort, args.phage_id,
             lambda p, phage_id: genbank_in.read(p, phage_id=phage_id))
         c5 = c5_comparative.run(cds, catalog, rules,
-                                is_circular=args.circular,
+                                is_circular=is_circular,
                                 near_clone_fallback=args.c5_near_clone_fallback,
                                 capability=blast)
     else:
@@ -481,7 +529,7 @@ def run(args):
 
     while True:
         hits, exec_state = completeness.run_cycle(
-            cds, pool, cands, rules, is_circular=args.circular, c5_result=c5
+            cds, pool, cands, rules, is_circular=is_circular, c5_result=c5
         )
         fresh = [h for h in hits
                  if (h["audit_id"], h["cds_id"], h["reason_class"]) not in acted]

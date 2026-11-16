@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rbpfinder"
-version = "1.2.0"
+version = "1.2.1+linux"
 description = "High-recall, interpretable shortlists of candidate receptor-binding proteins in tailed dsDNA phage genomes"
 readme = "README.md"
 requires-python = ">=3.9"

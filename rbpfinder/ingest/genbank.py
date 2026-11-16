@@ -1,4 +1,8 @@
-"""Mode A input: a pharokka-annotated GenBank file.
+"""Mode A input: an annotated GenBank file.
+
+pharokka output is the reference shape, but any annotated GenBank or RefSeq record is
+accepted. The hard requirements are CDS features carrying /translation and some form of
+/locus_tag or /ID.
 
 This parser answers exactly one question -- "what does the GenBank say?" -- and
 never "what does that mean?". No module assignment, no evidence direction, no
@@ -13,14 +17,34 @@ import re
 
 from Bio import SeqIO
 
-# Only an explicit trailing CDS number is accepted. Position in the file is
-# never used as a fallback: guessing an id would silently break the traceability
-# that lets 114/114 reference RBPs map to a locus tag.
+from ..errors import InputValidationError
+
+# An explicit trailing CDS number is PREFERRED: it maps 1:1 onto pharokka output and
+# keeps the id stable. A tag in any other shape (NCBI RefSeq's `T7p01`, ...) is not a
+# defect -- the raw tag is preserved verbatim in `raw_locus_tag` and a number is assigned
+# in GENOME COORDINATE order, with a warning naming the deviation.
+#
+# Coordinate order, not file order: a GenBank whose features are emitted out of order --
+# which happens -- would otherwise produce different ids for the same proteins on a
+# re-export, and `cds_id` is the key that `all_CDS_screening.tsv`, every manifest, the
+# search state and `--stage2-manifest` replay are all written against. Coordinate order
+# is a property of the genome; file order is a property of the file.
+#
+# What this still cannot promise: ids derived this way change if the genome is
+# RE-ANNOTATED with a different caller, because the CDS set itself changes. Artefacts
+# must not be mixed across annotation sources -- see USER_GUIDE.
 _CDS_NUM = re.compile(r"CDS_?(\d+)$")
 
 
-class GenBankIngestError(Exception):
-    """A defect that makes the input untrustworthy as benchmark ground truth."""
+class GenBankIngestError(InputValidationError):
+    """A defect that makes the input untrustworthy as benchmark ground truth.
+
+    An InputValidationError, so it carries exit code 2 and is caught by the same handler
+    every other input problem uses. It used to derive from bare Exception, which made it
+    the "third shape" this package's errors module exists to prevent: it escaped as a raw
+    traceback with exit 1, telling an agent that a malformed input file was an unexpected
+    internal error.
+    """
 
 
 def _canonical(phage_id, num):
@@ -86,12 +110,56 @@ def read(path, phage_id=None, is_circular=None):
     records, warnings, seen_nums = [], [], {}
     genome_length = sum(len(sr.seq) for sr in seq_records)
 
-    for sr in seq_records:
+    # --- pass 1: which CDS carry an explicit CDS_<n>, and what number does each CDS
+    # without one get? Numbers are assigned in genome coordinate order and start above
+    # the highest explicit number, so the two schemes can coexist in one file without
+    # ever colliding. Duplicate EXPLICIT numbers stay a hard failure.
+    tagless = []
+    for si, sr in enumerate(seq_records):
+        for fi, feat in enumerate(sr.features):
+            if feat.type != "CDS":
+                continue
+            q = {k: (v[0] if isinstance(v, list) and len(v) == 1 else v)
+                 for k, v in feat.qualifiers.items()}
+            tag = (q.get("locus_tag") or q.get("ID"))
+            if isinstance(tag, list):
+                tag = tag[0] if tag else None
+            if not tag:
+                # No identifier at all stays a hard failure: there would be nothing to
+                # preserve in raw_locus_tag, so traceability would be lost, not delegated.
+                raise GenBankIngestError(
+                    "%s: a CDS at %s has neither /locus_tag nor /ID; refusing to "
+                    "invent an identifier" % (path.name, feat.location))
+            m = _CDS_NUM.search(str(tag))
+            if m:
+                num = int(m.group(1))
+                if num in seen_nums:
+                    raise GenBankIngestError(
+                        "%s: duplicate CDS number %04d (%s and %s)"
+                        % (path.name, num, seen_nums[num], tag))
+                seen_nums[num] = str(tag)
+            else:
+                parts = _location_parts(feat)
+                tagless.append((min(p[0] for p in parts), si, fi, str(tag)))
+
+    assigned = {}
+    next_num = max(seen_nums, default=0) + 1
+    for _lo, si, fi, tag in sorted(tagless):
+        assigned[(si, fi)] = next_num
+        warnings.append(
+            "%s: locus tag %r does not end in CDS_<number>; assigned CDS_%04d by genome "
+            "coordinate order (the raw tag is preserved in raw_locus_tag)"
+            % (path.name, tag, next_num))
+        next_num += 1
+
+    resolved_circular = False
+    for si, sr in enumerate(seq_records):
         contig_len = len(sr.seq)
         topology = (sr.annotations or {}).get("topology", "linear")
         circular = is_circular if is_circular is not None else (topology == "circular")
+        resolved_circular = resolved_circular or bool(circular)
 
-        for feat in sr.features:
+        for fi, feat in enumerate(sr.features):
             if feat.type != "CDS":
                 continue
             q = {k: (v[0] if isinstance(v, list) and len(v) == 1 else v)
@@ -106,18 +174,9 @@ def read(path, phage_id=None, is_circular=None):
                     "%s: a CDS at %s has neither /locus_tag nor /ID; refusing to "
                     "invent an identifier" % (path.name, feat.location))
             m = _CDS_NUM.search(str(tag))
-            if not m:
-                raise GenBankIngestError(
-                    "%s: locus tag %r does not end in CDS_<number>; refusing to fall "
-                    "back to file order" % (path.name, tag))
-            num = int(m.group(1))
-
-            # --- check 2: two CDS claiming the same number -> hard failure
-            if num in seen_nums:
-                raise GenBankIngestError(
-                    "%s: duplicate CDS number %04d (%s and %s)"
-                    % (path.name, num, seen_nums[num], tag))
-            seen_nums[num] = str(tag)
+            # Pass 1 settled both the explicit numbers and the assigned ones, including
+            # every duplicate check; this pass only reads the answer.
+            num = int(m.group(1)) if m else assigned[(si, fi)]
 
             # --- check 4: compound locations and origin spanning are kept, not flattened
             parts = _location_parts(feat)
@@ -192,10 +251,18 @@ def read(path, phage_id=None, is_circular=None):
         "phage_id": phage_id,
         "source_file": path.name,
         "input_mode": "A_annotated",
-        "gene_caller": "phanotate",
+        # pharokka calls genes with PHANOTATE; any other annotator did not, and saying
+        # it did puts a false provenance in the run record.
+        "gene_caller": ("phanotate"
+                        if any(r.get("annotation_source") == "pharokka"
+                               for r in records) else "genbank_annotator"),
         "n_cds": len(records),
         "genome_length": genome_length,
-        "is_circular": bool(is_circular) if is_circular is not None else False,
+        # The RESOLVED circularity, not the raw flag: a record that declares
+        # `topology: circular` is circular even when no --circular was passed. C1's
+        # origin handling keys off this, and reporting False here left that fix dormant
+        # on exactly the records it was written for.
+        "is_circular": resolved_circular,
         "structural_screen": "STRUCTURAL_SCREEN_UNAVAILABLE",
         "warnings": warnings,
     }

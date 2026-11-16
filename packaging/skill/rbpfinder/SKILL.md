@@ -25,7 +25,13 @@ dependency wheels in this bundle are built for one platform and Python minor ver
 
 1. Run `rbpfinder doctor`. It only reports; it changes nothing, downloads nothing, and
    builds nothing.
-2. Verify the input is an **annotated** GenBank file — RBPfinder needs CDS features with
+2. Verify the input is an **annotated** GenBank file. pharokka output and any other
+   annotated GenBank or RefSeq record are accepted; the hard requirements are CDS
+   features carrying `/translation` and some form of `/locus_tag`. A tag that does not
+   end in `CDS_<number>` is fine -- RBPfinder numbers those in genome coordinate order,
+   preserves the original in `raw_locus_tag`, and says so. **Artefacts must not be mixed
+   across annotation sources**: re-annotating a genome changes the CDS set, so ids from
+   a pharokka run and ids from a RefSeq run are not interchangeable — RBPfinder needs CDS features with
    translations, not a bare nucleotide sequence. Do not eyeball it; run
    `rbpfinder validate-input --genbank <file>`. It takes seconds, changes nothing, uses
    the same readers the analysis uses, and names exactly what is wrong. Run it *before*
@@ -66,8 +72,12 @@ Useful additions:
   only when it covers this organism; otherwise it is skipped and the reason recorded.
 - `--host-taxid <id>` — required for a remote host search. RBPfinder never guesses a
   taxonomy id, and neither should you.
-- `--stage2-backend ebi --data-policy remote_allowed --allow-remote --ebi-email <addr>`
-  — remote Stage 2, with the disclosure above given first.
+- ~~`--stage2-backend ebi ... --allow-remote`~~ — **not available in this build.**
+  This Linux/Biomni build refuses `--allow-remote`, `--data-policy remote_allowed` and
+  `--stage2-backend ebi` with exit code 2. Nothing leaves the machine. On a server that
+  can download Foldseek, a structure database and a BLAST database, every evidence family
+  is reachable locally, so no capability is given up. Use the local backend, or
+  `--data-policy import_only` to parse results obtained elsewhere.
 
 Write every run into a **new** output directory. Never overwrite an input file.
 

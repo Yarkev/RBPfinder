@@ -119,8 +119,13 @@ def render(info):
     lines.append("structure  local Foldseek %s from this input"
                  % ("CAN run" if info.get("supports_local_structure_search")
                     else "CANNOT run"))
-    for w in info.get("warnings") or []:
+    warns = info.get("warnings") or []
+    # A whole-genome renumbering emits one warning per CDS; printing 200 of them buries
+    # the verdict. The JSON output keeps them all.
+    for w in warns[:3]:
         lines.append("  warning  %s" % w)
+    if len(warns) > 3:
+        lines.append("  warning  ... and %d more (use --json for all)" % (len(warns) - 3))
     for prob in info.get("problems") or []:
         lines.append("  PROBLEM  %s" % prob)
     lines.append("")

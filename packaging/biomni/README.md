@@ -45,9 +45,16 @@ remote disabled, S can never be earned. `rbpfinder database configure phage <pre
 ## 2. Install the skill package
 
 ```bash
-mkdir -p /mnt/results/skills/rbpfinder
-cp packaging/biomni/skill/rbpfinder/* /mnt/results/skills/rbpfinder/
+mkdir -p /mnt/results/skills/rbpfinder/references
+cp packaging/biomni/skill/rbpfinder/SKILL.md            /mnt/results/skills/rbpfinder/
+cp packaging/biomni/skill/rbpfinder/references/*.md     /mnt/results/skills/rbpfinder/references/
+python3 /mnt/skills/system/phylo-create-skill/scripts/check_skill.py \
+        /mnt/results/skills/rbpfinder/
 ```
+
+The frontmatter carries the `id` the platform already registered, so deploying over the
+existing directory **updates in place**. Changing the id would register a second skill
+under the same name; if you ever do want a new id, delete the old directory first.
 
 `skill/rbpfinder/` is the version-controlled source of truth; the copy under
 `/mnt/results/` is a deployment. Keep edits in the repo and redeploy, so the registered
@@ -114,5 +121,5 @@ no native Windows build).
 | File | What it is |
 |---|---|
 | `skill/rbpfinder/SKILL.md` | the skill package the platform registers |
-| `skill/rbpfinder/KNOW_HOW.md` | the procedure and the failure modes it prevents |
+| `skill/rbpfinder/references/KNOW_HOW.md` | the procedure and the failure modes it prevents |
 | `setup_biomni.sh` | idempotent `/workspace` install + database download/restore |

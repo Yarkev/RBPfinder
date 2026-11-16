@@ -105,9 +105,19 @@ class LocalFoldseek(object):
             except (TypeError, ValueError):
                 return None
 
-        ident = d.get("target", "")
-        header = d.get("theader", "")
-        target = ("%s %s" % (ident, header)).strip() if header else ident
+        ident = (d.get("target") or "").strip()
+        header = (d.get("theader") or "").strip()
+        # The official PDB database's `theader` ALREADY begins with the identifier, so
+        # joining the two blindly produced "8dsp-assembly1_E 8dsp-assembly1_E Cryo-EM
+        # structure of ...". The duplicate does not change the direction read off the
+        # description -- an accession carries no vocabulary -- but it is wrong in every
+        # hit_description the user sees. Observed on a real run, 2026-11-16.
+        if header.startswith(ident):
+            target = header
+        elif header:
+            target = "%s %s" % (ident, header)
+        else:
+            target = ident
         return d.get("query", ""), {
             "target": target,
             "prob": num("prob"),

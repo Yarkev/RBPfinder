@@ -232,3 +232,27 @@ def test_taxonomy_is_only_required_when_the_contract_asks_for_it(rules):
             return rules.get(key, default)
 
     assert stage3_local.needs_taxonomy(_NoTaxname()) is False
+
+
+# ------------------------ the official PDB theader already carries the identifier
+
+def _aln(rules, target, theader):
+    db = StructureDatabase("pdb100", "x")
+    lf = LocalFoldseek.__new__(LocalFoldseek)
+    lf.columns = list(rules.get("stage3.local_foldseek.format_output"))
+    lf.databases = [db]
+    cols = [target, theader, "1e-20", "900", "1.0", "4", "166", "1", "163", "553", "tax"]
+    return lf._row_to_alignment(["QUERY"] + cols)[1]
+
+
+def test_identifier_is_not_duplicated_into_the_description(rules):
+    """Real data: `theader` from the official PDB database starts with the identifier."""
+    aln = _aln(rules, "8dsp-assembly1_E",
+               "8dsp-assembly1_E Cryo-EM structure of the proximal half fiber")
+    assert aln["target"] == "8dsp-assembly1_E Cryo-EM structure of the proximal half fiber"
+    assert aln["target"].count("8dsp-assembly1_E") == 1
+
+
+def test_identifier_is_still_prepended_when_the_header_lacks_it(rules):
+    aln = _aln(rules, "1abc_A", "Some crystal structure")
+    assert aln["target"] == "1abc_A Some crystal structure"

@@ -118,7 +118,8 @@ Runs over the **nominated candidate pool** by default, not every CDS: structure 
 candidate-scoped everywhere else in the product, and ProstT5 is CPU-bound without a GPU.
 `--foldseek-all-cds` forces genome-wide.
 
-Not yet validated against a real foldseek binary — see `KNOWN_ISSUES.md` §10.
+Validated against a real foldseek binary and the official PDB database on
+2026-11-16; that validation found four defects, fixed in items 13-16 below.
 
 ### 7. `rbpfinder validate-input`
 
@@ -176,6 +177,78 @@ is given up by refusing to transmit.
 promise that a result can be traced to the rules that produced it. Both now read
 1.2.1+linux / 1.2.1-linux. `__init__.py` already read the installed distribution
 metadata and needed no change.
+
+---
+
+## Fixes from real-binary validation (2026-11-16)
+
+Items 6–8 above had been validated only against a *fake* foldseek binary, which emitted
+whatever columns it was asked for. That proved the plumbing and could not prove the
+contract. Running a real binary against the official PDB database (and T7, RefSeq
+NC_001604, end to end) found four defects.
+
+### 13. The column contract made every real search crash (P1)
+
+`stage3.local_foldseek.format_output` requested `prob`. A ProstT5 query is a sequence and
+has no backbone coordinates, so foldseek dies with
+`No datafile could be found for .../query_ca! Error: Convert Alignments died`.
+Upstream confirms it (steineggerlab/foldseek issue #305: "ProstT5 can't be combined with
+scores that require structure information"). `prob`, `lddt` and the tmscore columns are
+now excluded from the contract and from the executor's fallback list, with the reason
+recorded in both. A test asserts no coordinate-only column can reappear.
+
+Dropping it is a safe degradation: `structural.consensus` already keeps a hit whose
+probability is None rather than filtering it.
+
+### 14. The schema then rejected the result it had just produced (P2)
+
+With `prob` gone, `probability_pct` is null — and the schema declared it `number`, so the
+run failed validation and exited 2. `probability_pct` now admits null, which is the
+expected state on this route, not a fault.
+
+The exit-2 message now says a schema failure is an **internal** contract violation rather
+than a problem with the user's input: the code is shared with input errors, and a reader
+who saw only the code would tell the user to fix a file that is fine.
+
+### 15. The A2 audit was structurally blind to local structure search (P3)
+
+Two independent defects, both needed fixing:
+
+- The capability probe read only `tophit_protein`, which nothing but a phold TSV import
+  ever fills. A run that searched all 60 CDS and found 48 hits still reported
+  `not_executable_due_to_missing_genomewide_T_or_M`. The probe now takes
+  `structural_tophits` as a second source — passed **only** when the search covered the
+  whole genome, because A2 asks which CDS have structural signal and no positional
+  signal, and a pool-scoped search cannot answer that. `--foldseek-all-cds` therefore
+  keeps its promise to change no conclusion: it changes what the audit can RUN, never the
+  pool or the tiers.
+- The structure-database whitelist required an underscore directly after the 4-character
+  id, while the official PDB download emits `7ung-assembly1_o1`. All 8 real hits failed
+  it. The pattern now has an `<4char>-assembly<n>[_chain]` branch; `WP_*`, `envhog_*`,
+  `protein<N>` and the rest of phold's sequence-derived namespaces still fail it, so a
+  sequence datum still cannot be counted in both D and T.
+
+### 16. doctor called a database AVAILABLE that killed every search (P5)
+
+A structure database built by hand has no taxonomy files, and easy-search dies at run
+time when `taxname` is requested against it. doctor reported `AVAILABLE`. When the column
+contract asks for `taxname`, the resolver now checks `<prefix>_mapping`,
+`_nodes.dmp`, `_names.dmp` and `_merged.dmp` and reports `CONFIGURED, INVALID` naming the
+remedy. The check is tied to the contract, not hardcoded.
+
+### 17. An undeclared topology is now reported (P4)
+
+A record with no `/topology` is read as linear — correct, but silent in a way that
+matters. On a circular genome whose tail module spans the origin, C1 and C3 lose their
+nominations there while the **pool size does not change**, because C4's ±2 neighbourhood
+recovers the same CDS by another route. Measured on a rotated T7: CDS 0044/0045 fell from
+`C1+C3` to `C4` alone with nothing in the printed output revealing it.
+`validate-input` now warns when a record declares no topology.
+
+### 18. What real data confirmed was already right
+
+`_row_to_alignment`'s positional parsing landed correctly on every field, including the
+`"<identifier> <description>"` shape produced by joining `target` and `theader`.
 
 ---
 

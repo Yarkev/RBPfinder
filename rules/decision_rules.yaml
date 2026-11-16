@@ -1458,7 +1458,20 @@ stage3:
     subcommand: easy-search
     # The format-output columns, in order, that the executor requests and the normaliser
     # reads positionally. Changing this list is the only place the column contract lives.
-    format_output: [query, target, theader, prob, evalue, bits, fident,
+    #
+    # `prob` is NOT requestable here, and neither are `lddt` or the tmscore columns. The
+    # query on this route is an amino-acid FASTA that ProstT5 converts to 3Di, so it has
+    # no backbone coordinates, and any column needing them makes easy-search die with
+    #   No datafile could be found for .../query_ca! Error: Convert Alignments died
+    # Upstream confirms it: steineggerlab/foldseek issue #305 -- "ProstT5 can't be
+    # combined with scores that require structure information". Verified against a real
+    # binary and the official PDB database on 2026-11-16; the earlier contract listed
+    # `prob` and made this whole route unusable.
+    #
+    # Dropping it is a safe degradation: `structural.consensus` already keeps a hit whose
+    # probability is None rather than filtering it, so the evidence chain is unchanged
+    # apart from `probability_pct` being null (which the schema now permits).
+    format_output: [query, target, theader, evalue, bits, fident,
                     qstart, qend, tstart, tend, qlen, taxname]
     # The db label attached to every hit MUST be one of stage3.functional_databases or
     # stage3.apparatus_only_databases, because structural.consensus filters on it. A
@@ -1646,7 +1659,13 @@ evidence_families:
 
   # A hit may be promoted to an independent T unit ONLY if its target is a real structure
   # entry. Anything else stays in D no matter which phold sub-database produced it.
-  structure_database_tophit_pattern: "^(pdb[_|:]?[0-9A-Za-z]{4}|[0-9][A-Za-z0-9]{3}_[A-Za-z0-9]+|AF-[A-Z0-9]+-F[0-9]+|BFVD_.+|MGYP[0-9]+)$"
+  # The `<4char>-assembly<n>[_chain]` branch is the shape the OFFICIAL foldseek PDB
+  # database emits (`foldseek databases PDB ...`): 7ung-assembly1_o1, 8dsp-assembly1_E.
+  # Verified against a real database on 2026-11-16, where all 8 hits on T7 failed the
+  # earlier pattern because it required an underscore directly after the 4-character id.
+  # Still a WHITELIST: WP_*, envhog_*, protein<N> and the other sequence-derived phold
+  # namespaces must keep failing it, or the same datum would be counted in both D and T.
+  structure_database_tophit_pattern: "^(pdb[_|:]?[0-9A-Za-z]{4}|[0-9][A-Za-z0-9]{3}_[A-Za-z0-9]+|[0-9][A-Za-z0-9]{3}-assembly[0-9]+(\\.cif)?(\\.gz)?(_[A-Za-z0-9]+)?|AF-[A-Z0-9]+-F[0-9]+|BFVD_.+|MGYP[0-9]+)$"
 
   # 2026-08-19, v0.4. C1, C3, C4, A1a, A1b and A3 all answer "is this CDS worth LOOKING at?",
   # from the same annotated genome. Four of them agreeing is still one genomic-context unit.

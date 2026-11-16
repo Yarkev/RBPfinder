@@ -528,8 +528,16 @@ def run(args):
     cands, tiers_by_id, families_by_id = classify(pool, channels_by_id)
 
     while True:
+        # Local structure hits reach the A2 probe ONLY when the search covered the whole
+        # genome. A2 asks which CDS have structural signal but no positional signal; a
+        # pool-scoped search cannot answer that, because nothing outside the pool was
+        # looked at. This also keeps --foldseek-all-cds honest about "changes no
+        # conclusion": it changes what the audit can RUN, never the pool or the tiers.
+        a2_structural = (stage3_prov.get("tophits")
+                         if stage3_prov.get("scope") == "all_cds" else None)
         hits, exec_state = completeness.run_cycle(
-            cds, pool, cands, rules, is_circular=is_circular, c5_result=c5
+            cds, pool, cands, rules, is_circular=is_circular, c5_result=c5,
+            structural_tophits=a2_structural
         )
         fresh = [h for h in hits
                  if (h["audit_id"], h["cds_id"], h["reason_class"]) not in acted]
@@ -776,7 +784,16 @@ def run(args):
     errors = schema_mod.validate(run_result, sch)
     if errors:
         (outdir / "SCHEMA_ERRORS.txt").write_text("\n".join(errors), encoding="utf-8")
+        # Exit 2 is shared with input errors, so say WHOSE fault this is. A reader --
+        # human or agent -- who sees only the code would otherwise diagnose a bad input
+        # file and tell the user to fix it, when a schema violation means the tool
+        # produced a record its own contract forbids. That happened for real: a hit with
+        # no probability wrote `probability_pct: null` against a `number`-only schema,
+        # and the whole run failed looking like an input problem.
         print("SCHEMA VALIDATION FAILED (%d errors) -- no report written" % len(errors))
+        print("  This is an INTERNAL contract violation, not a problem with your input.")
+        print("  The run_result RBPfinder built does not satisfy evidence_schema.json;")
+        print("  see SCHEMA_ERRORS.txt. Report it rather than editing your input.")
         for e in errors[:20]:
             print("  " + e)
         return 2

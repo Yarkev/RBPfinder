@@ -72,8 +72,11 @@ class LocalFoldseek(object):
         if self.cache_dir:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
         base = "stage3.local_foldseek"
+        # Kept in step with stage3.local_foldseek.format_output. `prob`/`lddt`/tmscore
+        # must not appear: a ProstT5 query has no backbone coordinates and easy-search
+        # dies on "No datafile could be found for .../query_ca" (foldseek issue #305).
         self.columns = (rules.get(base + ".format_output") if rules else None) or [
-            "query", "target", "theader", "prob", "evalue", "bits", "fident",
+            "query", "target", "theader", "evalue", "bits", "fident",
             "qstart", "qend", "tstart", "tend", "qlen", "taxname"]
 
     # -- normalisation -----------------------------------------------------

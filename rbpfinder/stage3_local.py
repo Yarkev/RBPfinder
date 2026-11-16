@@ -45,6 +45,26 @@ def _db_prefix_usable(path):
     return False
 
 
+# The files foldseek needs beside a database before it will answer a `taxname` query.
+# A database built by hand from PDB files has none of them, and easy-search then dies at
+# run time naming the missing one -- after the search has already been set up. Verified
+# against a hand-built three-entry database on 2026-11-16; the official
+# `foldseek databases PDB ...` download ships them.
+TAXONOMY_SUFFIXES = ("_mapping", "_nodes.dmp", "_names.dmp", "_merged.dmp")
+
+
+def taxonomy_missing(path):
+    """Which taxonomy files this database prefix lacks. Empty when it is complete."""
+    return [s for s in TAXONOMY_SUFFIXES
+            if not pathlib.Path(str(path) + s).exists()]
+
+
+def needs_taxonomy(rules):
+    """Does the configured column contract ask for taxonomy?"""
+    cols = rules.get("stage3.local_foldseek.format_output", []) or []
+    return "taxname" in [str(c) for c in cols]
+
+
 def resolve_structure_databases(rules, env=None, explicit=None):
     """Which structure databases apply, and why any configured one does not.
 
@@ -89,6 +109,17 @@ def resolve_structure_databases(rules, env=None, explicit=None):
             decisions.append({"label": label, "used": False, "reason": "invalid_path",
                               "detail": "no Foldseek database found at %s" % path,
                               "fatal": True})
+            continue
+        missing = taxonomy_missing(path) if needs_taxonomy(rules) else []
+        if missing:
+            decisions.append({
+                "label": label, "used": False, "reason": "missing_taxonomy",
+                "path": path, "fatal": True,
+                "detail": "the database at %s has no taxonomy files (%s). The column "
+                          "contract requests `taxname`, and easy-search fails at run "
+                          "time against a database without them. Use a database "
+                          "downloaded by `foldseek databases`, which ships them."
+                          % (path, ", ".join("<prefix>" + s for s in missing))})
             continue
         decisions.append({"label": label, "used": True, "path": path,
                           "reason": "configured",
@@ -144,6 +175,7 @@ def prepare(cds_rows, rules, capability, outdir, prostt5_model=None, env=None,
 
     rows = []
     hits = 0
+    tophits = {}
     for rec in recs:
         cid = rec["cds_id"]
         doc = docs.get(cid, {"results": []})
@@ -151,10 +183,30 @@ def prepare(cds_rows, rules, capability, outdir, prostt5_model=None, env=None,
         path = art_dir / (cid + ".foldseek.json")
         path.write_text(json.dumps(doc), encoding="utf-8")
         rows.append({"cds_id": cid, "kind": "foldseek_json", "path": str(path)})
-        if any((blk.get("alignments") or [[]])[0]
-               for blk in doc.get("results", [])):
+        best = _best_target(doc)
+        if best:
             hits += 1
+            tophits[cid] = best
 
+    # The best target per CDS, for the A2 capability probe. It is reported, never applied
+    # here: whether these may count as a genome-wide T source is the audit's question,
+    # and it still has to pass the structure-database whitelist.
     prov.update({"artifact_dir": str(art_dir), "cds_searched": len(rows),
-                 "cds_with_hits": hits})
+                 "cds_with_hits": hits, "tophits": tophits})
     return rows, prov
+
+
+def _best_target(doc):
+    """The identifier of the first alignment in the document, or None.
+
+    The identifier only -- `local_foldseek` joins it to the target's description with a
+    space, and the whitelist is about the namespace, not the title.
+    """
+    for blk in doc.get("results") or []:
+        alns = blk.get("alignments") or []
+        flat = alns[0] if alns and isinstance(alns[0], list) else alns
+        for aln in flat:
+            target = str(aln.get("target") or "")
+            if target:
+                return target.split(" ", 1)[0]
+    return None

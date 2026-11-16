@@ -45,6 +45,25 @@ def inspect_genbank(path, phage_id="VALIDATE"):
     out["gene_caller"] = meta.get("gene_caller")
     out["genome_length_nt"] = meta.get("genome_length")
     out["contigs"] = meta.get("contigs")
+    out["declares_topology"] = bool(meta.get("declares_topology"))
+    out["is_circular"] = bool(meta.get("is_circular"))
+
+    # A record with no /topology is read as linear. That is the right default, but it is
+    # silent in a way that matters: on a circular genome whose tail module spans the
+    # origin, C1 and C3 lose nominations there while the POOL SIZE stays the same,
+    # because C4's +/-2 neighbourhood recovers the same CDS by another route. Measured on
+    # a rotated T7: CDS 0044/0045 fell from C1+C3 to C4 alone with no change in any
+    # number the report prints. So the degradation is invisible unless it is said here.
+    if not out["declares_topology"]:
+        # First, not appended: the renderer shows only the head of the list, and a
+        # genome-wide renumbering can emit one warning per CDS ahead of it. This one is
+        # about correctness; those are bookkeeping.
+        out["warnings"].insert(0,
+            "no topology declared in the record, so it is being read as LINEAR. If this "
+            "genome is circular, pass --circular (or add topology to the record): "
+            "otherwise a tail module spanning the origin silently loses its C1/C3 "
+            "nominations, and the pool size does not change, so nothing in the output "
+            "reveals it")
 
     if not cds:
         out["problems"].append(

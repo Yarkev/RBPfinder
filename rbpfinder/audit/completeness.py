@@ -24,7 +24,8 @@ def _module_of(rec, rules):
     return mm.get(rec["function"], mm.get("_default"))
 
 
-def genome_wide_T_or_M_available(cds_rows, rules, ml_results=None):
+def genome_wide_T_or_M_available(cds_rows, rules, ml_results=None,
+                                 structural_tophits=None):
     """Capability probe for A2. Returns (available, detail).
 
     The test is a WHITELIST: a hit counts as a structural source only when its
@@ -33,6 +34,17 @@ def genome_wide_T_or_M_available(cds_rows, rules, ml_results=None):
     then `envhog_*` appeared on T7, then `WP_*` (an NCBI RefSeq protein) on
     lambda. Every one of those is sequence-derived, so reading any of them as T
     would double-count the same datum that already sits in D.
+
+    `structural_tophits` is `{cds_id: target_id}` from a GENOME-WIDE local structure
+    search. It is a second source for the same question, added because the probe read
+    only `tophit_protein`, which nothing but a phold TSV import ever fills -- so a run
+    that searched every CDS with local Foldseek and found 48 hits still reported A2
+    unexecutable (measured on T7, 2026-11-16).
+
+    Genome-wide is the precondition, not a detail. A2 asks which CDS have positive
+    structural signal and negative positional signal; a search restricted to the
+    nominated pool cannot answer it, because by construction no CDS outside the pool was
+    looked at. The caller passes these only when the search covered the whole genome.
     """
     pattern = rules.get("evidence_families.structure_database_tophit_pattern")
     qualifying = [
@@ -41,8 +53,20 @@ def genome_wide_T_or_M_available(cds_rows, rules, ml_results=None):
     ]
     if qualifying:
         return True, ("%d CDS carry a hit to a real structure database" % len(qualifying))
+
+    local = sorted(cid for cid, target in (structural_tophits or {}).items()
+                   if target and re.match(pattern, str(target)))
+    if local:
+        return True, ("%d CDS carry a genome-wide local structure-search hit to a real "
+                      "structure database" % len(local))
+
     if ml_results:
         return True, "machine-learning results present"
+    if structural_tophits is not None:
+        return False, (
+            "a genome-wide local structure search ran but no target matched a "
+            "structure-database identifier (%s), so nothing in it may be promoted to "
+            "T" % pattern)
     return False, (
         "no phold tophit matches a structure-database identifier (%s); every hit is to "
         "one of phold's sequence-derived bundled databases, so it is D-family evidence "
@@ -223,7 +247,7 @@ def _a4_state(c5_result, rules):
 
 
 def run_cycle(cds_rows, pool, candidates, rules, is_circular, ml_results=None,
-              c5_result=None):
+              c5_result=None, structural_tophits=None):
     """One adversarial pass. Returns (hits, executability)."""
     hits = list(a1_module_sweep(cds_rows, pool, rules))
     a1b_hits = a1b_tail_adjacent_unknown(cds_rows, pool, rules)
@@ -233,7 +257,8 @@ def run_cycle(cds_rows, pool, candidates, rules, is_circular, ml_results=None,
     )
     hits.extend(a3_hits)
 
-    a2_ok, a2_detail = genome_wide_T_or_M_available(cds_rows, rules, ml_results)
+    a2_ok, a2_detail = genome_wide_T_or_M_available(
+        cds_rows, rules, ml_results, structural_tophits=structural_tophits)
     exec_state = {
         "A1": {"executable": True,
                "detail": "A1a swept %d CDS; A1b flagged %d unannotated CDS adjacent to a "

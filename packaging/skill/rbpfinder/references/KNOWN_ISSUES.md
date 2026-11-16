@@ -193,34 +193,82 @@ C1 / C2 把 `Tal`、`Dit` 当子串匹配
 完整闸门链上重跑。已知需要留意的一类：T2/T6 类噬菌体的 gp38 是真正的 adhesin，
 若其产物名恰为 "tail fiber assembly protein" 而不含 adhesin/receptor 字样，会被读成结构性。
 
-## 10. 本地 Foldseek（Local Stage 3）— 代码与接线已完成，真实二进制未在此验证
+## 10. 本地 Foldseek（Local Stage 3）— 已对真实二进制验证（2026-11-16）
 
-填上了项目一直登记却没实现的 `local_foldseek`（`data_policy.provider_registry` 与
-`capability_matrix` 里早有槽位，`executor: not_bundled`）。它在本机用 ProstT5 把氨基酸
-序列直接搜本地结构库，产物归一化成与 Foldseek 网页版相同的 JSON、以 `foldseek_json`
-进入既有证据管线，所以 `structural.build` 是唯一的解读者——和手动导入一条路。本机运行、
-`transmits: false`，`private` 允许、`import_only` 拒绝。
+§10 之前写的是"代码与接线已完成，真实二进制未在此验证"。**现已验证，并因此发现四个缺陷——
+全部已修。** 验证环境：真实 foldseek 二进制、`foldseek databases ProstT5`（f16 gguf，2.3 GB）、
+官方 `foldseek databases PDB`（约 4.7 GB）、T7（RefSeq NC_001604）端到端。
 
-**已在本仓库验证**（`tests/test_local_foldseek.py`，用一个假 foldseek 二进制跑通整条
-subprocess → 归一化 → `structural.build` → 整次 CLI 运行）：
+**这正是假二进制验证不了的东西。** 假 foldseek 按我们要求的列输出，所以它证明了管道，
+却**证明不了契约本身**。
 
 ```
-参数拼装 / TSV→web-JSON 归一化 / 缓存 / searched-no-hit 落盘 / 未知 label 拒绝
-整次运行：合成尾丝 CDS 在配置本地 Foldseek 后 R2-E2 → R1-E3（补上家族 T）
+P1  format_output 里的 prob 列使 easy-search 必然崩溃
+      No datafile could be found for .../query_ca! Error: Convert Alignments died
+    ProstT5 查询是序列，没有骨架坐标，prob 需要 query 的 C-alpha 文件。
+    上游佐证：steineggerlab/foldseek issue #305（维护者："ProstT5 can't be combined
+    with scores that require structure information"）。prob/lddt/tmscore 系列同理。
+    → 已从契约与执行器 fallback 中删除
+
+P2  去掉 prob 后 probability_pct: null 违反 schema（定义为 number），整个运行 exit 2
+    → schema 改为 ["number","null"]。这是安全降级：structural.consensus 本来就保留
+      probability 为 None 的命中而不是过滤它
+
+P3  A2 完整性审计对本地 foldseek 结构性失明：
+      (a) 探针只读 tophit_protein，而该字段只有 phold TSV 导入会填；
+          实测全基因组搜索 60/60 CDS、48 命中，A2 仍报 not_executable
+      (b) 官方 PDB 库命中 ID 是 7ung-assembly1_o1（连字符），白名单要求下划线，
+          8 个真实命中零匹配
+    → 探针新增 structural_tophits 入口（仅在 scope=all_cds 时传入，因为 A2 问的是
+      "全基因组哪些 CDS 有结构信号而无位置信号"，池内搜索答不了这个问题）；
+      白名单扩展 <4char>-assembly<n>[_chain] 分支，WP_/envhog_/protein<N> 仍被拒
+
+P5  doctor 对缺分类学文件的结构库报 AVAILABLE（假阳性，该库让每次搜索运行时死掉）
+    → 当契约请求 taxname 时，检查 <prefix>_mapping / _nodes.dmp / _names.dmp /
+      _merged.dmp，缺失则报 CONFIGURED, INVALID 并指明用官方 foldseek databases 下载
 ```
 
-**尚未验证、必须在目标机器确认**：
+**验证过的部分**：`_row_to_alignment` 的位置解析在真实数据上**全部落位正确**，
+包括 `target` 与 `theader` 以单空格拼接成 "<identifier> <description>" 的形状。
+
+**残留限制**：
 
 ```
-真实 foldseek easy-search 是否按 stage3.local_foldseek.format_output 的列顺序输出
-  —— 假二进制按该契约产出，真二进制的列名/顺序要在装好后核对一次
-pdb100 的 theader 是否带可分类的功能描述（direction_rule 读的是描述，不是 accession）
-ProstT5 --prostt5-model 的确切调用形式随 foldseek 版本可能不同
-没有跑任何真实结构 benchmark —— 这一项改变 tier，发布前要在完整闸门链上重跑
+自建结构库（手工从 PDB 文件建）没有分类学文件，taxname 查询会失败。
+  → 用官方 foldseek databases 下载的库；doctor 现在会提前拦住
+
+搜 PDB 时方向判读以 uninformative 居多，这是预期状态不是故障：
+  PDB 标题是晶体学描述，不是功能注释
+
+本地结构证据单独存在时不足以把真 RBP 推上高层：实测 T7 gp17（文献确立的 RBP）
+  = R3 / E2 / apparatus。把判读推上去的是 S 家族（对已知噬菌体蛋白的同源，
+  需要配置 DB_PHAGE）加上 T 的功能描述命中。见第 11 条
 ```
 
-本机（这台开发容器）装不了 foldseek、下不了 pdb100、也没有 GPU，所以以上只能在你的
-Linux 服务器上收口。
+## 11. T7 gp17 判为 R3/apparatus — 机制与设计意图（2026-11-16）
+
+端到端实测：文献确立的 T7 RBP gp17（product "tail fiber protein"）判为
+tier R3 / E2 / role unresolved / 方向 `supports_apparatus_membership`。
+
+**这不是词表缺陷，是两件事叠加，其中一件是有测量依据的刻意设计。**
+
+```
+设计（2026-08-19，有记录）：
+  "tail fiber protein" 曾在 positive_rbp_terms 里，被刻意移出。
+  W073 上 Ig 适配杆、真 RBP、连接器、尖端【全都】有叫 "tail fiber protein" 的同源物。
+  该词标识【装置】，无法在装置内部区分受体结合；留着它把三个标准硬阴性抬过了各自上限。
+  规则原话：Receptor binding needs a FUNCTIONAL term, not a part name.
+
+  对照：tailspike 则【被加入】positive_rbp_terms（M20-b2A），因为它是单个蛋白
+  同时在尾部又识别受体（P22 gp9），"整簇共享注释"的理由不适用。实测 424 个候选变 2 个。
+
+证据饥饿（可修）：
+  gp17 需要带【功能词】的同源注释才能拿到 receptor_binding 方向，
+  而那要靠 DB_PHAGE（S 家族）。未配置序列数据库时，S 家族根本不存在。
+```
+
+所以正确的处置不是把 `tail fiber` 加回正向词表（那被测量过，更差），而是
+**配置 DB_PHAGE**。agent 在报告时应当显式指出这个分歧并解释机制，而不是沉默。
 
 ## 不属于缺陷的行为
 

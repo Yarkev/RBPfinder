@@ -116,6 +116,10 @@ def collect(env=None, blastp=None, makeblastdb=None):
     s3_dbs, s3_decisions = stage3_local.resolve_structure_databases(
         rules_obj, env=env) if rules_obj else ([], [])
     for d in s3_decisions:
+        # `fatal` covers both a path that does not resolve and a database missing the
+        # taxonomy files the column contract needs. The second used to report AVAILABLE
+        # and then kill every search at run time -- a diagnostic that says a broken
+        # installation is fine is worse than no diagnostic.
         state = "AVAILABLE" if d.get("used") else (
             "CONFIGURED, INVALID" if d.get("fatal") else "NOT CONFIGURED")
         rows.append(("Databases", "structure:%s" % d.get("label"), state,

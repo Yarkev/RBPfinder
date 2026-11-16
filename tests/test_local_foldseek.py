@@ -53,7 +53,7 @@ for qid in ids:
         theader = None  # no hit for this query
     if theader is None:
         continue
-    rows.append("\t".join([qid, "1abc_A", theader, "0.98", "1e-18", "320.0",
+    rows.append("\t".join([qid, "1abc_A", theader, "1e-18", "320.0",
                            "0.41", "5", "250", "1", "245", "300", "Escherichia phage"]))
 pathlib.Path(res).write_text("\n".join(rows) + ("\n" if rows else ""))
 '''
@@ -71,6 +71,18 @@ def fake_foldseek(tmp_path):
 @pytest.fixture(scope="module")
 def rules():
     return Rules(ROOT / "rules" / "decision_rules.yaml")
+
+
+
+# The official `foldseek databases` download ships taxonomy files beside the database;
+# a `taxname` query dies at run time without them, so resolution now requires them.
+def _make_db(root, label="pdb100"):
+    root.mkdir(parents=True, exist_ok=True)
+    prefix = root / label
+    (root / (label + ".dbtype")).write_text("x")
+    for suffix in ("_mapping", "_nodes.dmp", "_names.dmp", "_merged.dmp"):
+        (root / (label + suffix)).write_text("x")
+    return prefix
 
 
 def _records():
@@ -99,8 +111,7 @@ def test_normalises_to_web_json_and_builds_rb_record(fake_foldseek, rules, tmp_p
     # name the query so the fake emits an RBP-titled hit
     recs = [{"cds_id": "P_CDS_0009_RBP", "translation": "M" + "A" * 299, "length_aa": 300}]
     db = StructureDatabase("pdb100", str(tmp_path / "db" / "pdb100"))
-    (tmp_path / "db").mkdir()
-    (tmp_path / "db" / "pdb100.dbtype").write_text("x")
+    _make_db(tmp_path / "db", "pdb100")
 
     lf = LocalFoldseek(databases=[db], prostt5_model=str(tmp_path / "prostt5"),
                        foldseek_exe=str(fake_foldseek),
@@ -130,8 +141,7 @@ def _read_doc(foldseek_parse, doc, tmp_path):
 def test_searched_no_hit_is_written_not_omitted(fake_foldseek, rules, tmp_path):
     # a query with neither RBP nor BASE in its id gets no hit from the fake
     cds = [{"cds_id": "X_CDS_0042", "translation": "M" + "E" * 150, "length_aa": 151}]
-    (tmp_path / "db").mkdir()
-    (tmp_path / "db" / "pdb100.dbtype").write_text("x")
+    _make_db(tmp_path / "db", "pdb100")
     rows, prov = stage3_local.prepare(
         cds, rules, FoldseekCapability(foldseek=str(fake_foldseek)), str(tmp_path),
         prostt5_model=str(tmp_path / "prostt5"),
@@ -148,8 +158,7 @@ def test_scope_restricts_search_to_nominated_pool(fake_foldseek, rules, tmp_path
     """restrict_ids limits the (CPU-bound, GPU-less) ProstT5 work to candidate CDS."""
     cds = [{"cds_id": "P_CDS_%04d" % i, "translation": "M" + "A" * 99, "length_aa": 100}
            for i in range(1, 6)]
-    (tmp_path / "db").mkdir()
-    (tmp_path / "db" / "pdb100.dbtype").write_text("x")
+    _make_db(tmp_path / "db", "pdb100")
     rows, prov = stage3_local.prepare(
         cds, rules, FoldseekCapability(foldseek=str(fake_foldseek)), str(tmp_path),
         prostt5_model=str(tmp_path / "prostt5"),
@@ -160,8 +169,7 @@ def test_scope_restricts_search_to_nominated_pool(fake_foldseek, rules, tmp_path
 
 
 def test_unknown_db_label_is_refused(rules, tmp_path):
-    (tmp_path / "db").mkdir()
-    (tmp_path / "db" / "weird.dbtype").write_text("x")
+    _make_db(tmp_path / "db", "weird")
     use, decisions = stage3_local.resolve_structure_databases(
         rules, explicit=[("not_a_real_db", str(tmp_path / "db" / "weird"))])
     assert use == []
@@ -176,9 +184,8 @@ def test_bare_path_without_label_is_an_error(rules, tmp_path):
 
 
 def test_env_var_parses_label_path_pairs(rules, tmp_path):
-    (tmp_path / "db").mkdir()
     for name in ("pdb100", "cath50"):
-        (tmp_path / "db" / (name + ".dbtype")).write_text("x")
+        _make_db(tmp_path / "db", name)
     env = {"RBPFINDER_FOLDSEEK_DB":
            "pdb100=%s,cath50=%s" % (tmp_path / "db" / "pdb100",
                                     tmp_path / "db" / "cath50")}
@@ -199,7 +206,7 @@ for line in pathlib.Path(query).read_text().splitlines():
         if qid.endswith("0009"):
             rows.append("\t".join([qid, "1abc_A",
                 "Crystal structure of tail fiber receptor binding protein",
-                "0.99", "1e-25", "400.0", "0.45", "3", "290", "1", "288", "300",
+                "1e-25", "400.0", "0.45", "3", "290", "1", "288", "300",
                 "Escherichia phage"]))
 pathlib.Path(res).write_text("\n".join(rows) + ("\n" if rows else ""))
 '''
@@ -216,8 +223,7 @@ def test_full_run_structure_lifts_tail_fibre_tier(rules, tmp_path, monkeypatch):
     e2e._genbank(gbk)
 
     # structure DB + fake foldseek + a (never-read) prostt5 dir
-    (tmp_path / "db").mkdir()
-    (tmp_path / "db" / "pdb100.dbtype").write_text("x")
+    _make_db(tmp_path / "db", "pdb100")
     (tmp_path / "prostt5").mkdir()
     exe = tmp_path / "foldseek"
     exe.write_text(_FAKE_FOLDSEEK_RBP0009)
@@ -266,8 +272,7 @@ def test_import_only_refuses_local_foldseek(rules, tmp_path):
 
 def test_cache_prevents_a_second_search(fake_foldseek, rules, tmp_path):
     recs = [{"cds_id": "P_CDS_0001_RBP", "translation": "M" + "A" * 99, "length_aa": 100}]
-    (tmp_path / "db").mkdir()
-    (tmp_path / "db" / "pdb100.dbtype").write_text("x")
+    _make_db(tmp_path / "db", "pdb100")
     db = StructureDatabase("pdb100", str(tmp_path / "db" / "pdb100"))
     cache = str(tmp_path / "cache")
     lf = LocalFoldseek(databases=[db], prostt5_model=None,

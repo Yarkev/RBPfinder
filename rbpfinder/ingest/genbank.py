@@ -153,9 +153,12 @@ def read(path, phage_id=None, is_circular=None):
         next_num += 1
 
     resolved_circular = False
+    declares_topology = False
     for si, sr in enumerate(seq_records):
         contig_len = len(sr.seq)
-        topology = (sr.annotations or {}).get("topology", "linear")
+        declared = (sr.annotations or {}).get("topology")
+        declares_topology = declares_topology or bool(declared)
+        topology = declared or "linear"
         circular = is_circular if is_circular is not None else (topology == "circular")
         resolved_circular = resolved_circular or bool(circular)
 
@@ -263,6 +266,10 @@ def read(path, phage_id=None, is_circular=None):
         # origin handling keys off this, and reporting False here left that fix dormant
         # on exactly the records it was written for.
         "is_circular": resolved_circular,
+        # Whether the record SAID anything about topology, as opposed to being read as
+        # linear by default. validate-input warns on the difference: an undeclared
+        # circular genome degrades C1/C3 silently, without changing the pool size.
+        "declares_topology": declares_topology,
         "structural_screen": "STRUCTURAL_SCREEN_UNAVAILABLE",
         "warnings": warnings,
     }

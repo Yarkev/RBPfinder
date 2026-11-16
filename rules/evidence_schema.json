@@ -118,7 +118,8 @@
               "type": "number"
             },
             "probability_pct": {
-              "type": "number"
+              "comment": "null is legal and expected on the local ProstT5 Foldseek route: that query has no backbone coordinates, so the `prob` column cannot be requested at all (foldseek issue #305). Absent probability is not a failed search -- structural.consensus keeps such hits rather than filtering them.",
+              "type": ["number", "null"]
             },
             "tm_score": {
               "type": "number"

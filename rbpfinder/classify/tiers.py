@@ -6,7 +6,9 @@ from .evidence_families import counted
 _RB = "supports_receptor_binding"
 _NON_RBP = "supports_non_rbp_identity"
 _STRUCT = "supports_structural_only"
-_APPARATUS = "supports_apparatus_membership"
+# The fourth direction, `supports_apparatus_membership`, is deliberately not named here:
+# nothing in this module branches on it. R3 is the floor for anything that fails R1 and
+# R2, so apparatus membership needs no test of its own -- see the comment in `assign`.
 _STRENGTH_ORDER = {"strong": 0, "moderate": 1, "weak": 2}
 
 
@@ -15,17 +17,25 @@ def assign(records, independent_families, rules):
     rb_families = sorted({r["family"] for r in c if r["direction"] == _RB})
     direct_families = set(rb_families) & {"T", "D", "S"}
     hard_contradiction = any(r["direction"] == _NON_RBP for r in c)
-    apparatus = any(r["direction"] in (_APPARATUS, _STRUCT) for r in c)
 
     if hard_contradiction:
         tier_r = "N"
-    elif len(rb_families) >= 2 and direct_families and rb_families != ["G"]:
+    elif len(rb_families) >= 2 and direct_families:
+        # `and rb_families != ["G"]` stood here and was unreachable: direct_families is
+        # rb_families intersected with {T, D, S}, so a non-empty direct_families already
+        # means rb_families holds something other than G. The YAML's `forbid: G-only
+        # support` is enforced by direct_families, not by that comparison.
         tier_r = "R1"
     elif len(independent_families) >= 2 and rb_families:
         tier_r = "R2"
-    elif apparatus or independent_families:
-        tier_r = "R3"
     else:
+        # R3 is the FLOOR, not a classification. It covers a candidate that is clearly
+        # part of the apparatus, one with some independent evidence that does not reach
+        # R2, and one with nothing at all -- the last because a CDS only reaches tiering
+        # by having been nominated, and `every_cds_has_a_reason` keeps the nomination
+        # itself on the record. Two branches used to compute R3 separately (`apparatus or
+        # independent_families` and the else), which read as though they meant different
+        # things; they did not, and the duplication hid that R3 has no sub-cases here.
         tier_r = "R3"
 
     n = len(independent_families)
@@ -79,7 +89,7 @@ def role_and_layer(tier, records, rules):
         return role, "RBP_core"
     if tier["tier_r"] == "R2":
         return "unresolved", "RBP_associated"
-    if any(r["direction"] == "supports_structural_only" for r in c):
+    if any(r["direction"] == _STRUCT for r in c):
         return "connector_baseplate", "structural_tail_component"
     return "unresolved", "RBP_associated"
 

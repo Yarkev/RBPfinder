@@ -292,15 +292,33 @@ def run(args):
     if c5["state"] != c5_comparative.STATE_OK:
         run_flags.append("C5_NO_COMPARATIVE_COHORT")
 
+    # ---- invariants.nomination_is_add_only, actually enforced ---------------------
+    # The YAML declares `enforcement: assert len(P_after_channel) >= len(P_before_channel)`
+    # and no such assertion existed. The invariant held anyway, as a property of the
+    # implementation -- the pool is a set and every channel only adds to it -- but a
+    # property is not a contract: the first channel to grow a filter would break it with
+    # no gate saying so, while the rules file went on claiming one.
+    #
+    # Checked per channel, not once at the end, so a violation names the channel.
     channels_by_id = {}
-    for tag, res in (("C1", c1), ("C2", c2), ("C3", c3), ("C4", c4)):
-        for cid in res["nominated"]:
+    for tag, res in (("C1", c1), ("C2", c2), ("C3", c3), ("C4", c4),
+                     ("C5", c5 or {})):
+        before = len(channels_by_id)
+        for cid in res.get("nominated") or ():
             channels_by_id.setdefault(cid, set()).add(tag)
-    for cid in (c5 or {}).get("nominated", ()):
-        channels_by_id.setdefault(cid, set()).add("C5")
+        if len(channels_by_id) < before:
+            raise AssertionError(
+                "invariants.nomination_is_add_only violated: channel %s shrank pool P "
+                "from %d to %d. A Stage 1 channel may only add candidates."
+                % (tag, before, len(channels_by_id)))
 
     # Test-only hook. Removes a CDS from Stage 1 output so that Stage 6 recovery can
     # be demonstrated on a real genome. Never use outside a rescue fixture.
+    #
+    # This is the ONE sanctioned removal from pool P, and it does not contradict the
+    # add-only invariant asserted above: that invariant binds the CHANNELS, and this is
+    # an explicit operator request made after every channel has run. It is also why the
+    # assertion is placed where it is rather than at the end of Stage 1.
     suppressed = []
     for cid in args.suppress_nomination or []:
         matched = [k for k in channels_by_id if k.endswith(cid)]

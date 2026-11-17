@@ -297,3 +297,37 @@ def test_tier_no_longer_depends_on_tool_name_ordering(rules):
         return tiers.assign(recs, ind, rules)["tier_r"]
 
     assert tier_for("aaa_before") == tier_for("zzz_after")
+
+
+# ------------------- invariants the rules file claims are enforced, now enforced
+
+def test_add_only_invariant_is_asserted_not_merely_true(rules):
+    """`invariants.nomination_is_add_only` declared an assertion that did not exist.
+
+    The invariant held as a property of the implementation -- a set, and channels that
+    only add -- but a property is not a contract: the first channel to grow a filter
+    would have broken it silently while the rules file went on claiming a gate.
+    """
+    enforcement = rules.get("invariants.nomination_is_add_only.enforcement")
+    assert "asserted per channel" in enforcement
+    # the exception is named rather than left to be discovered
+    assert "suppress-nomination" in rules.get(
+        "invariants.nomination_is_add_only.exception")
+
+    import inspect
+    from rbpfinder import cli
+    src = inspect.getsource(cli.run)
+    assert "nomination_is_add_only violated" in src, (
+        "the assertion the rules file describes is missing from cli.run")
+
+
+def test_rules_file_carries_no_standing_authorisation(rules):
+    """Authorisation is a run record, not a rule.
+
+    `standing_authorisation: granted: true` sat in the rules file, read by nothing, where
+    an agent could take it for a default grant -- and where it travelled to anyone who
+    cloned the repository.
+    """
+    policy = rules.get("data_policy")
+    assert "standing_authorisation" not in policy
+    assert "per-run" in policy["removed_standing_authorisation"]

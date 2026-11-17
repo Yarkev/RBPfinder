@@ -140,7 +140,11 @@ E4 扩大可达状态集合
 ```
 
 修法：没有 e-value 就**不写这个键**（absent ≠ null，只有 absent 合法）。
-冻结的 `scripts/pre_e4_localisation.py` **保留**这个缺陷，因为它是历史记录。
+
+> **引用说明**：本节原文引用的 `scripts/pre_e4_localisation.py` 与下文的
+> `scripts/test_evidence_record_schema.py` 都是**开发机上的内部闸门脚本，未随公共版发布**
+> （`scripts/` 目录不在本仓库）。公共版的测试在 `tests/`。保留这些引用是为了记录闸门
+> 存在过、以及它当初抓到了什么；**按路径去仓库里找会一无所获**。
 
 **这个模式还会再出现**，HHpred 与 Foldseek 多记录化时尤其如此。所以留了一条常设闸门：
 `scripts/test_evidence_record_schema.py` —— 对**每条 reader 产出的 EvidenceRecord**

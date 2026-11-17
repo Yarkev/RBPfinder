@@ -386,6 +386,59 @@ cover.
 
 ---
 
+## Review debt cleared (2026-11-17)
+
+### 27. The add-only invariant is now actually asserted (review I4)
+
+`invariants.nomination_is_add_only` declared
+`enforcement: assert len(P_after_channel) >= len(P_before_channel)` and no such assertion
+existed anywhere. The invariant held, but only as a property of the implementation -- the
+pool is a set and every channel only adds -- and a property is not a contract: the first
+channel to grow a filter would have broken it silently while this file went on claiming a
+gate.
+
+Asserted per channel in `cli.run`, so a violation names the channel that shrank the pool.
+`--suppress-nomination` is the one sanctioned removal and is now named as an exception in
+the rules: it is an operator request made after every channel has run, which is why the
+assertion sits before it.
+
+### 28. `standing_authorisation` is out of the rules file (review I2)
+
+It recorded that one project had been granted remote submission on a date -- a run
+record, not a rule -- and nothing in the code ever read it. Two reasons it does not belong
+there: a reader, above all an agent driving the tool, can take `granted: true` for a
+default authorisation; and a grant made to one project does not travel with the file to
+whoever clones it. Authorisation is per-run only, and in this build remote is refused
+outright.
+
+### 29. Dead code in the tier assignment (review S2)
+
+`rb_families != ["G"]` was unreachable: `direct_families` is `rb_families` intersected
+with {T, D, S}, so a non-empty `direct_families` already rules out G-only support. And two
+branches computed R3 separately, reading as though they distinguished something; they did
+not. Merged, with R3 documented as the floor rather than a classification.
+
+Verified behaviour-preserving by exhausting all 16384 combinations of
+(rb_families, independent_families, apparatus, hard_contradiction) against the previous
+expression: zero differences.
+
+### 30. The installers say what they are for (review B4)
+
+`install_linux.sh` and `install_windows.ps1` install from a wheel in `runtime/`, which the
+release bundle ships and the repository does not. Run after `git clone` they failed with a
+bare "no rbpfinder wheel found", which reads as a broken installer rather than the wrong
+one. They now explain the distinction and point at `pip install .` or, on a server,
+`packaging/biomni/setup_biomni.sh`. README leads with the Biomni setup and marks the
+platform installers as bundle-only.
+
+### 31. The dangling `scripts/` references say they are dangling (review B3)
+
+`KNOWN_ISSUES.md` cited internal gate scripts that are not shipped. The citations are kept
+-- they record that a gate existed and what it caught -- with a note that `scripts/` is
+not in this repository and the public tests are in `tests/`.
+
+---
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend

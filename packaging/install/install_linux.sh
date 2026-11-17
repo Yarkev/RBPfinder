@@ -110,9 +110,29 @@ else
 fi
 
 # --- 3. install ------------------------------------------------------------------------
+# This script installs from a built wheel in the RELEASE BUNDLE, not from a source
+# checkout: `runtime/` is produced by the bundle build and is deliberately not in the
+# repository. Running it straight after `git clone` used to fail with a bare
+# "no rbpfinder wheel found", which reads like a broken installer rather than the wrong
+# installer for what the user has in front of them.
 WHEEL_DIR="$ROOT/runtime"
+if [ ! -d "$WHEEL_DIR" ]; then
+    say ""
+    say "  $WHEEL_DIR does not exist."
+    say ""
+    say "  This is the installer for a RELEASE BUNDLE, which ships a built wheel in"
+    say "  runtime/. You appear to be in a source checkout, where there is none."
+    say ""
+    say "  From a source checkout, install directly:"
+    say "      pip install ."
+    say ""
+    say "  On a Biomni/Linux server, use the sandbox setup instead, which creates its"
+    say "  own venv and also fetches Foldseek and the structure database:"
+    say "      bash packaging/biomni/setup_biomni.sh"
+    fail "nothing to install from: this is the release-bundle installer"
+fi
 WHEEL="$(find "$WHEEL_DIR" -maxdepth 1 -name 'rbpfinder-*.whl' | sort | head -n 1)"
-[ -z "$WHEEL" ] && fail "no rbpfinder wheel found in $WHEEL_DIR"
+[ -z "$WHEEL" ] && fail "no rbpfinder wheel found in $WHEEL_DIR (the bundle may have been built without the runtime wheel)"
 say ""
 say "  installing $(basename "$WHEEL")"
 

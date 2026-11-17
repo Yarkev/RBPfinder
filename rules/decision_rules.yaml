@@ -20,7 +20,18 @@ meta:
 invariants:
   nomination_is_add_only:
     rule: "No Stage 1 channel may remove a candidate from pool P."
-    enforcement: "assert len(P_after_channel) >= len(P_before_channel)"
+    enforcement: >
+      asserted per channel in cli.run, after each of C1-C5 folds its nominations into the
+      pool, so a violation names the channel that shrank it. Until 2026-11 this line
+      described an assertion that did not exist: the invariant held only as a property of
+      the implementation (the pool is a set and every channel only adds), which meant the
+      first channel to grow a filter would have broken it with no gate saying so, while
+      this file went on claiming one.
+    exception: >
+      --suppress-nomination removes from the pool deliberately, so that Stage 6 recovery
+      can be demonstrated on a real genome. It is an operator request made after every
+      channel has run, not a channel, so it does not fall under this invariant -- and the
+      assertion sits before it for exactly that reason.
   absence_is_not_counter_evidence:
     rule: "Null/zero/low-confidence results may never reduce a candidate's tier."
     applies_to: [interproscan_zero_hits, blast_no_hit, low_plddt, low_iptm, low_ptm]
@@ -62,12 +73,19 @@ data_policy:
   # Consequence: the SMA 48 stay on Mode A (83 local pharokka GenBanks already cover
   # them), and the cloud route is used for PUBLIC genomes, where uploading carries no
   # disclosure risk at all.
-  standing_authorisation:
-    granted: true
-    granted_on: "2026-08-20"
-    scope: "remote submission permitted for this project"
-    does_not_override: "third-party service terms, including the bulk-annotation request"
-    still_per_run_flag: "--allow-remote is still required, so every run records what it did"
+  # `standing_authorisation` was removed here in 2026-11. It recorded that one project
+  # had been granted remote submission on a particular date -- a RUN RECORD, not a rule,
+  # and nothing in the code ever read it. Two reasons to take it out of a rules file:
+  # a reader, above all an agent driving this tool, can misread `granted: true` as a
+  # default authorisation; and an authorisation granted to one project does not travel
+  # with the file to anyone who clones it.
+  #
+  # The authorisation model is unchanged and lives entirely in the per-run flag:
+  # `--allow-remote` is required every time and every run records what it did. In THIS
+  # build remote submission is refused outright -- see the build note below.
+  removed_standing_authorisation: >
+    authorisation is per-run only. There is no standing grant, and this file does not
+    carry one.
 
   modes:
     private:

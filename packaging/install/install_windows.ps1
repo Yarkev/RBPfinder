@@ -116,10 +116,23 @@ if (Test-Path $venvPy) {
 }
 
 # --- 3. install -------------------------------------------------------------------
+# This installs from a built wheel in the RELEASE BUNDLE, not from a source checkout:
+# runtime/ is produced by the bundle build and is deliberately not in the repository.
 $wheelDir = Join-Path $root "runtime"
+if (-not (Test-Path $wheelDir)) {
+    Say ""
+    Say "  $wheelDir does not exist."
+    Say ""
+    Say "  This is the installer for a RELEASE BUNDLE, which ships a built wheel in"
+    Say "  runtime/. You appear to be in a source checkout, where there is none."
+    Say ""
+    Say "  From a source checkout, install directly:"
+    Say "      pip install ."
+    Fail "nothing to install from: this is the release-bundle installer"
+}
 $wheel = Get-ChildItem -Path $wheelDir -Filter "rbpfinder-*.whl" -ErrorAction SilentlyContinue |
          Select-Object -First 1
-if (-not $wheel) { Fail "no rbpfinder wheel found in $wheelDir" }
+if (-not $wheel) { Fail "no rbpfinder wheel found in $wheelDir (the bundle may have been built without the runtime wheel)" }
 Say ""
 Say "  installing $($wheel.Name)"
 

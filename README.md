@@ -36,27 +36,25 @@ From source (either platform, once this repo is cloned):
 pip install .
 ```
 
-Or use the platform installer, which creates its own virtual environment rather than
-touching the system Python:
-
-```powershell
-# Windows
-cd packaging\install
-.\install_windows.ps1
-.\verify_install.ps1
-```
+On a Biomni or other Linux server, use the sandbox setup instead. It creates its own
+virtual environment and also fetches Foldseek, the structure database and the ProstT5
+weights, so local structure search works:
 
 ```bash
-# Linux
-cd packaging/install
-bash install_linux.sh
-bash verify_install.sh
+bash packaging/biomni/setup_biomni.sh
+source /workspace/rbpfinder.env
+rbpfinder doctor
 ```
 
-Both installers take `-Skill user` / `--skill user` to also drop the agent skill into
-`~/.claude/skills/rbpfinder/` (or `-Skill project` / `--skill project` for one project
-only). See `packaging/skill/rbpfinder/references/USER_GUIDE.md` for what to do next, and
-`ADVANCED.md` for `--stage2-manifest` replay and bulk multi-genome runs.
+> `packaging/install/install_linux.sh` and `install_windows.ps1` install from a built
+> wheel in `runtime/`, which the **release bundle** ships and this repository does not.
+> Run from a source checkout they tell you so and point you at `pip install .`; they are
+> not the path to use after `git clone`.
+
+Both platform installers take `-Skill user` / `--skill user` to also drop the agent skill
+into `~/.claude/skills/rbpfinder/` (or `-Skill project` / `--skill project` for one
+project only). See `packaging/skill/rbpfinder/references/USER_GUIDE.md` for what to do
+next, and `ADVANCED.md` for `--stage2-manifest` replay and bulk multi-genome runs.
 
 ## Two profiles
 

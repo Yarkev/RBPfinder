@@ -300,9 +300,9 @@ Verified end to end on T7 with `--foldseek-all-cds` against the real PDB databas
 `reopened_and_downgraded` (honestly low, nothing inflated), terminated cleanly, schema
 PASS, exit 0.
 
-**Not yet measured:** the pool grows from 21 to 49 CDS on that run. That is the designed
-reopen-plus-cap mechanism working, but its effect on the benchmark has not been measured
-and should be before this is relied on.
+**Measured since:** the pool grows from 21 to 49 CDS on that run. That is the designed
+reopen-plus-cap mechanism working; the pilot benchmark then measured its effect on six
+labelled strains — see items 23-26. The full 48-strain regression is still not run.
 
 ### 21. The A2 ML branch is dormant, and now says so
 

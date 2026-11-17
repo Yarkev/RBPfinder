@@ -276,7 +276,7 @@ Preserve these when summarising:
 | easy-search dies naming a missing `_mapping` / `_nodes.dmp` / `_names.dmp` / `_merged.dmp` | the structure database has no taxonomy files | use one downloaded by `foldseek databases`; `doctor` flags this in advance |
 | `probability_pct` is null everywhere | expected on the ProstT5 route — no backbone coordinates, so no probability exists | nothing; do not report it |
 | `Local Stage 3 UNAVAILABLE` | foldseek, the structure database or the ProstT5 weights are missing | see Bootstrap |
-| `A2 could not run: ...missing_genomewide_T_or_M` | the structure search was pool-scoped, or no structure source exists | **state the completeness ceiling** — this is the designed behaviour on the default path, not a fault. `--foldseek-all-cds` makes A2 runnable but is experimental and benchmark-pending |
+| `A2 could not run: ...missing_genomewide_T_or_M` | the structure search was pool-scoped, or no structure source exists | **state the completeness ceiling** — this is the designed behaviour on the default path, not a fault. `--foldseek-all-cds` makes A2 runnable — experimental, and not a no-op on the result; see its entry above |
 | exit 2 mentioning schema validation | internal contract violation | report it; the user's input is not at fault |
 | a structure database label is refused | the label is not one Stage 3 recognises | use `pdb100` / `cath50` |
 

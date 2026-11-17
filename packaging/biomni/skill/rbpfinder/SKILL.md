@@ -132,9 +132,14 @@ Useful additions:
   host-aware filtering without checking `doctor` first.
 - `--foldseek-db pdb100=<prefix> --prostt5-model <weights_dir>` — local structure search.
   Usually preset via `$RBPFINDER_FOLDSEEK_DB` / `$RBPFINDER_PROSTT5_MODEL`.
-- `--foldseek-all-cds` — search every CDS instead of the nominated pool. Slower, and it
-  changes no nomination or tier; what it changes is that the **A2 completeness audit
-  becomes runnable**, because A2 asks a genome-wide question.
+- `--foldseek-all-cds` — **experimental, benchmark pending.** Searches every CDS instead
+  of the nominated pool, which makes the **A2 completeness audit runnable** (A2 asks a
+  genome-wide question, so a pool-scoped search cannot answer it). Verified correct on a
+  single genome; its effect on complete-recall and on the `false-complete = 0` invariant
+  across the benchmark has not been measured. Use it to investigate, not as the default
+  for a result someone will act on. The default pool-scoped search is the validated
+  working state, and A2 reporting itself unexecutable on that path is the original
+  design behaving correctly, not a defect to work around.
 - `--comparative-cohort <dir-of-genbanks>` — the C5 comparative channel (needs blastp +
   makeblastdb).
 - `--data-policy import_only` — parse existing results the user supplies; run no search.
@@ -263,7 +268,7 @@ Preserve these when summarising:
 | easy-search dies naming a missing `_mapping` / `_nodes.dmp` / `_names.dmp` / `_merged.dmp` | the structure database has no taxonomy files | use one downloaded by `foldseek databases`; `doctor` flags this in advance |
 | `probability_pct` is null everywhere | expected on the ProstT5 route — no backbone coordinates, so no probability exists | nothing; do not report it |
 | `Local Stage 3 UNAVAILABLE` | foldseek, the structure database or the ProstT5 weights are missing | see Bootstrap |
-| `A2 could not run: ...missing_genomewide_T_or_M` | the structure search was pool-scoped, or no structure source exists | re-run with `--foldseek-all-cds`, or state the completeness ceiling |
+| `A2 could not run: ...missing_genomewide_T_or_M` | the structure search was pool-scoped, or no structure source exists | **state the completeness ceiling** — this is the designed behaviour on the default path, not a fault. `--foldseek-all-cds` makes A2 runnable but is experimental and benchmark-pending |
 | exit 2 mentioning schema validation | internal contract violation | report it; the user's input is not at fault |
 | a structure database label is refused | the label is not one Stage 3 recognises | use `pdb100` / `cath50` |
 

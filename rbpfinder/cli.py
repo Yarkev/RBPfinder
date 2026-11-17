@@ -1265,9 +1265,14 @@ def main(argv=None):
     p.add_argument("--no-local-stage3", action="store_true",
                    help="do not run local Foldseek even if it is configured")
     p.add_argument("--foldseek-all-cds", action="store_true",
-                   help="run local Foldseek on every CDS, not just the nominated pool. "
-                        "Slower (ProstT5 is CPU-bound without a GPU) and changes no "
-                        "conclusion; off by default")
+                   help="EXPERIMENTAL, benchmark pending. Run local Foldseek on every "
+                        "CDS, not just the nominated pool. Slower (ProstT5 is CPU-bound "
+                        "without a GPU). It changes no nomination or tier; what it "
+                        "changes is that the A2 completeness audit becomes runnable. "
+                        "Verified on one genome; the effect on complete-recall and on "
+                        "the false-complete invariant across the benchmark is not "
+                        "measured. Off by default, and the default is the validated "
+                        "working state")
     p.add_argument("--no-local-stage2", action="store_true",
                    help="do not search configured databases (fixtures, quick smokes, "
                         "reproduction runs)")

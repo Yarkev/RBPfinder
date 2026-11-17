@@ -89,6 +89,24 @@ export PATH="$VENV/bin:$BIN_DIR:\$PATH"
 export RBPFINDER_FOLDSEEK="$BIN_DIR/foldseek"
 export RBPFINDER_FOLDSEEK_DB="pdb100=$FS_DIR/pdb100"
 export RBPFINDER_PROSTT5_MODEL="$FS_DIR/prostt5"
+
+# Keep the database registry under $RBP_HOME, which survives hibernation.
+#
+# \`rbpfinder database configure\` writes to \$XDG_CONFIG_HOME or ~/.config by default,
+# and in this sandbox that path is NOT in the persistent snapshot -- so a hibernate/resume
+# silently loses the DB_PHAGE registration while the database files themselves are still
+# sitting there, and doctor goes back to reporting NOT CONFIGURED. Observed 2026-11-17.
+export RBPFINDER_CONFIG="$RBP_HOME/rbpfinder-databases.yaml"
+
+# Sequence databases for family S. S is what carries FUNCTIONAL homolog annotations, and
+# those are what lift a candidate above apparatus membership -- without it a real RBP
+# stalls at R3 however good its structural hit. Register one with:
+#     rbpfinder database configure phage <blast-db-prefix>
+# (and \`host\` if you have a database covering the phage's host genus). With
+# RBPFINDER_CONFIG set above, that registration is durable. Alternatively set the paths
+# directly here, which takes precedence over the registry:
+# export RBPFINDER_DB_PHAGE="$RBP_HOME/db/phage"
+# export RBPFINDER_DB_HOST="$RBP_HOME/db/host"
 EOF
 
 say "done."

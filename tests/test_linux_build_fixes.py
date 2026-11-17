@@ -331,3 +331,28 @@ def test_rules_file_carries_no_standing_authorisation(rules):
     policy = rules.get("data_policy")
     assert "standing_authorisation" not in policy
     assert "per-run" in policy["removed_standing_authorisation"]
+
+
+def test_database_registry_location_is_overridable(tmp_path, monkeypatch):
+    """`RBPFINDER_CONFIG` has to work: on the Biomni sandbox the default path is not in
+    the persistent snapshot, so a hibernate/resume loses the DB_PHAGE registration while
+    the database files themselves survive. setup_biomni.sh points it inside /workspace
+    for exactly that reason, which makes this override load-bearing rather than a
+    convenience."""
+    from rbpfinder import database
+    target = tmp_path / "registry.yaml"
+    monkeypatch.setenv("RBPFINDER_CONFIG", str(target))
+    assert database.config_path() == target
+
+    monkeypatch.delenv("RBPFINDER_CONFIG")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    assert database.config_path() == tmp_path / "xdg" / "rbpfinder" / "databases.yaml"
+
+
+def test_setup_script_pins_the_registry_into_the_persistent_prefix():
+    import pathlib as _pl
+    script = (_pl.Path(__file__).resolve().parent.parent
+              / "packaging" / "biomni" / "setup_biomni.sh").read_text()
+    assert "RBPFINDER_CONFIG" in script, (
+        "setup_biomni.sh must pin the database registry inside the persistent prefix; "
+        "the default path is wiped by hibernation on that sandbox")

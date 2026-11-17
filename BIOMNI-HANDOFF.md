@@ -1,9 +1,9 @@
 # Handoff — RBPfinder Linux/Biomni build
 
-**Authoritative source:** `github.com/Yarkev/RBPfinder`, branch `claude/loving-gauss-cl7oca`, commit **`8470a1f`**
+**Authoritative source:** `github.com/Yarkev/RBPfinder`, branch `claude/loving-gauss-cl7oca`, commit **`HEAD`**
 **Version:** `1.2.1+linux` (package) / `1.2.1-linux` (rules)
-**Tests:** 100 passing · CI on Linux + Windows, Python 3.9 + 3.13
-**Full change log with rationale:** `CHANGES-linux.md` (31 items)
+**Tests:** 102 passing · CI on Linux + Windows, Python 3.9 + 3.13
+**Full change log with rationale:** `CHANGES-linux.md` (32 items)
 
 > Older `/mnt/results/RBPfinder-linux*` artefacts and `verifier_patch.diff` are superseded.
 > Do not apply them over this branch.
@@ -97,27 +97,37 @@ hard negatives        W073 ceilings held both arms     PASS
 
 ---
 
-## 4. The single highest-value open action
+## 4. The highest-value action — done, and what it showed
 
-**Configure a phage sequence database.** `rbpfinder database configure phage <prefix>`.
+**Configuring a phage sequence database was the largest available improvement, and it
+has been done.** The measurement closes the loop on the original complaint that results
+were imprecise:
 
-Every run so far has been in evidence starvation: `doctor` reports
-`Local Stage 2 UNAVAILABLE`, so the **S family does not exist**. S is what carries
-*functional* homolog annotations, and functional terms are what lift a candidate above
-apparatus membership.
+| T7 gp17 (the literature-established RBP) | Before | After DB_PHAGE |
+|---|---|---|
+| Evidence families | G + T | **D + G + S + T** |
+| Tier | R3 | **R2** |
+| Rank | outside | **3** |
+| In Primary | no | **yes** |
 
-Measured consequence: T7 gp17, the literature-established RBP, comes out
-`R3 / E2 / unresolved / supports_apparatus_membership` **even with a strong structural
-hit**, because every PDB title for it is a part name ("tail fiber protein") or a
-crystallographic phrase ("carboxy-terminal domain of … fibre gp17"). Family T alone
-cannot fix that; a functional homolog annotation can.
+Diagnosis confirmed: the cause was **evidence starvation**, not a vocabulary defect.
+Every PDB title for gp17 is a part name ("tail fiber protein") or a crystallographic
+phrase ("carboxy-terminal domain of … fibre gp17"), so family T alone could never produce
+a receptor-binding direction. A functional *homolog* annotation could, and the S family
+is what carries one. Re-adding `tail fiber` to the positive vocabulary — the other
+candidate fix — was tried historically and measured worse (see §6).
 
-This changes no code and needs no benchmark. It is the largest available improvement to
-the original complaint that results were imprecise.
+**Keep the registry durable.** `rbpfinder database configure` writes to `$XDG_CONFIG_HOME`
+or `~/.config` by default, which the sandbox does **not** keep in its persistent
+snapshot: a hibernate/resume loses the registration while the database files themselves
+survive, and `doctor` reverts to `NOT CONFIGURED`. `setup_biomni.sh` now sets
+`RBPFINDER_CONFIG` inside the prefix, so `source /workspace/rbpfinder.env` before
+configuring. If `doctor` ever reports `DB_PHAGE NOT CONFIGURED` on a machine where you
+know you configured it, check this first.
 
-**Ordering note:** running the vocabulary-unification benchmark *before* this is
-configured would measure its effect under evidence starvation and could give a wrong
-answer.
+**Ordering note, now satisfied:** running the vocabulary-unification benchmark before
+this was configured would have measured its effect under evidence starvation. That
+dependency is cleared.
 
 ---
 
@@ -127,9 +137,10 @@ answer.
 
 | | |
 |---|---|
-| Configure DB_PHAGE | §4 — highest value, no code change |
-| Redeploy the skill package | §2 — the deployed copy predates this commit |
+| ~~Configure DB_PHAGE~~ | **done** — §4 has the measured outcome |
+| ~~Redeploy the skill package~~ | **done** — `check_skill` passed; redeploy again after this commit, which touches SKILL.md |
 | Run the remaining 42 strains | optional; only no-regression + false-complete are checkable |
+| Platform skill registration | awaiting approval in the UI; affects index visibility only, the files and the gate are in place |
 
 ### Needs a benchmark to proceed safely
 

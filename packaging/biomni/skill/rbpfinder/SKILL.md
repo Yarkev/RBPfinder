@@ -98,6 +98,12 @@ sequence database: `rbpfinder database configure phage <blast-db-prefix>` (and `
 you have a matching one). Without it the S family does not exist, and S is what carries
 *functional* homolog annotations — the thing that lifts a candidate above apparatus.
 
+On a sandbox whose home directory is not in the persistent snapshot, `source` the
+environment file first: it sets `RBPFINDER_CONFIG` to a path that survives, so the
+registration is not lost on resume. If `doctor` reports `DB_PHAGE NOT CONFIGURED` on a
+machine where you know you configured it, that is the first thing to check — the database
+files usually survived and only the registry entry was lost.
+
 **Local Stage 3 (family T — structure).**
 
 ```bash

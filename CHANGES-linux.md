@@ -439,6 +439,26 @@ not in this repository and the public tests are in `tests/`.
 
 ---
 
+### 32. The database registry now lives where it survives (2026-11-17)
+
+`rbpfinder database configure` writes to `$XDG_CONFIG_HOME` or `~/.config`. On the Biomni
+sandbox that path is not in the persistent snapshot, so a hibernate/resume silently lost
+the DB_PHAGE registration **while the database files themselves survived** — `doctor` went
+back to `NOT CONFIGURED` and every subsequent run was in evidence starvation again, with
+nothing pointing at the cause. Reported from the real environment.
+
+`setup_biomni.sh` now sets `RBPFINDER_CONFIG` to a path inside the prefix, which
+`database.config_path()` already honoured, so the registration is durable without any new
+mechanism. The script's env file also documents the `RBPFINDER_DB_PHAGE` /
+`RBPFINDER_DB_HOST` alternative, which takes precedence over the registry, and says why
+family S matters. Two tests pin the override and the script's use of it.
+
+This closes the loop on the original complaint. With DB_PHAGE configured, T7 gp17 moves
+from `R3`, families G+T, outside Primary — to `R2`, families **D+G+S+T**, rank 3, in
+Primary. The cause was evidence starvation, as diagnosed, not the vocabulary.
+
+---
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend

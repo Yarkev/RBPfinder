@@ -40,7 +40,21 @@ It is idempotent: re-run it any time, and after a rebuild it restores the databa
 > `--foldseek-all-cds` forces genome-wide.
 
 Also install a sequence database for family S (local BLAST) — without one, and with
-remote disabled, S can never be earned. `rbpfinder database configure phage <prefix>`.
+remote disabled, S can never be earned, and a real RBP stalls at R3 however good its
+structural hit:
+
+```bash
+rbpfinder database configure phage <blast-db-prefix>
+```
+
+> **The registry must live under `/workspace`.** `database configure` writes to
+> `$XDG_CONFIG_HOME` or `~/.config` by default, which this sandbox does **not** keep in
+> its persistent snapshot: a hibernate/resume loses the registration while the database
+> files themselves are still there, and `doctor` goes back to reporting
+> `NOT CONFIGURED`. `setup_biomni.sh` therefore sets `RBPFINDER_CONFIG` to a path inside
+> the prefix, so `source /workspace/rbpfinder.env` before configuring and the
+> registration is durable. (`RBPFINDER_DB_PHAGE` / `RBPFINDER_DB_HOST` set directly in
+> that env file also work, and take precedence over the registry.)
 
 ## 2. Install the skill package
 

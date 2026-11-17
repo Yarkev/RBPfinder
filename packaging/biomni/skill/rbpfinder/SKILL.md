@@ -132,14 +132,22 @@ Useful additions:
   host-aware filtering without checking `doctor` first.
 - `--foldseek-db pdb100=<prefix> --prostt5-model <weights_dir>` — local structure search.
   Usually preset via `$RBPFINDER_FOLDSEEK_DB` / `$RBPFINDER_PROSTT5_MODEL`.
-- `--foldseek-all-cds` — **experimental, benchmark pending.** Searches every CDS instead
-  of the nominated pool, which makes the **A2 completeness audit runnable** (A2 asks a
-  genome-wide question, so a pool-scoped search cannot answer it). Verified correct on a
-  single genome; its effect on complete-recall and on the `false-complete = 0` invariant
-  across the benchmark has not been measured. Use it to investigate, not as the default
-  for a result someone will act on. The default pool-scoped search is the validated
-  working state, and A2 reporting itself unexecutable on that path is the original
-  design behaving correctly, not a defect to work around.
+- `--foldseek-all-cds` — **experimental.** Searches every CDS instead of the nominated
+  pool, which makes the **A2 completeness audit runnable** (A2 asks a genome-wide
+  question, so a pool-scoped search cannot answer it). On the default path A2 reports
+  itself unexecutable, and that is the original design behaving correctly, not a defect
+  to work around.
+
+  **It is not a no-op on the result.** A2 reopens the pool, reopened CDS are classified
+  like any other, so new candidates can appear and the Primary top-up rule can admit
+  them — measured on one strain where Primary went from 1 candidate to 3. What it does
+  *not* change is the tier a CDS earns from a given evidence set, and the reopen
+  provenance itself contributes no evidence family.
+
+  Pilot benchmark on 6 labelled strains: `false-complete` 0 in 12 of 12 runs,
+  complete-recall@K identical in both arms, 362 reopened-and-downgraded against 2
+  reopened-and-promoted. The full 48-strain regression has not been run. Say which path
+  you used when you report, because the completeness state depends on it.
 - `--comparative-cohort <dir-of-genbanks>` — the C5 comparative channel (needs blastp +
   makeblastdb).
 - `--data-policy import_only` — parse existing results the user supplies; run no search.

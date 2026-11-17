@@ -219,9 +219,11 @@ Two independent defects, both needed fixing:
   `not_executable_due_to_missing_genomewide_T_or_M`. The probe now takes
   `structural_tophits` as a second source — passed **only** when the search covered the
   whole genome, because A2 asks which CDS have structural signal and no positional
-  signal, and a pool-scoped search cannot answer that. `--foldseek-all-cds` therefore
-  keeps its promise to change no conclusion: it changes what the audit can RUN, never the
-  pool or the tiers.
+  signal, and a pool-scoped search cannot answer that.
+
+  This item originally claimed `--foldseek-all-cds` "keeps its promise to change no
+  conclusion: it changes what the audit can RUN, never the pool or the tiers". **The
+  second half is false, and the pilot benchmark disproved it** — see item 23.
 - The structure-database whitelist required an underscore directly after the 4-character
   id, while the official PDB download emits `7ung-assembly1_o1`. All 8 real hits failed
   it. The pattern now has an `<4char>-assembly<n>[_chain]` branch; `WP_*`, `envhog_*`,
@@ -320,6 +322,67 @@ producer appears, which is the signal to remove the notes.
 the agent that locus tags must end in `CDS_<number>`, and described remote EBI BLAST as
 available-but-off. All three were wrong for this build, and the file had been deployed.
 Rewritten against what the build actually does.
+
+---
+
+## Pilot benchmark (2026-11-17), and one claim it disproved
+
+Six strains carrying reference labels, two arms (default pool-scoped vs
+`--foldseek-all-cds`), same input, same foldseek build, same PDB database, 12 runs.
+
+### 23. `--foldseek-all-cds` is not a no-op on the result
+
+Items 6 and 15, and the flag's own help text, said it changes no nomination or tier. That
+was my reasoning, not a measurement, and it was wrong in a way worth naming: I conflated
+"the tier a CDS earns from a given evidence set does not change" with "the candidate set
+does not change". A2 **reopens the pool**; reopened CDS are then classified like any
+other; new candidates appear; and `stage7.candidate_set.primary_set` says Primary is
+"R1 candidates, topped up with the strongest R2". So Primary can change — measured on
+N136, 1 candidate to 3.
+
+Corrected in the help text, the code comment and the skill. The accurate statement: the
+tier a CDS earns from given evidence is unchanged, and the reopen provenance contributes
+no evidence family, but the pool and therefore the reported sets can change.
+
+### 24. The three metrics passed
+
+    false-complete        0 in 12 of 12 runs, both arms
+    complete-recall@K     identical in both arms (cr@3 9/15; cr@4..6 10/15)
+    reopen outcomes       362 reopened_and_downgraded vs 2 reopened_and_promoted
+
+Reference-RBP ranks barely moved despite pools roughly doubling: only N136 CDS_0101
+13 -> 18 and C277 CDS_0223 83 -> 84, both already outside every K. The W073 hard
+negatives held their ceilings in both arms (CDS_0004 R3, CDS_0006 R2, CDS_0030 R3).
+
+### 25. Why the two promotions are correct, and why a reopen cannot inflate a tier
+
+A2 promoted two N136 CDS into Primary. That is documented behaviour, for two independent
+reasons:
+
+- **R2 in Primary is by design.** `primary_set.contents` is "R1 candidates, topped up
+  with the strongest R2", typical size 2-4. N136's default-arm Primary held 1 candidate,
+  *below* that range; the all-CDS arm gave 3, inside it. The top-up rule did what it says.
+- **The reopen conferred no tier advantage**, which
+  `evidence_families.stage6_recovery_confers_no_tier_advantage` requires ("it contributes
+  nothing to tier_r or tier_e"). `normalize.build` mints a genomic-context record for
+  `S6-A1` and `S6-A3` but **not** for `S6-A2`, so an A2-reopened CDS gains no family from
+  having been reopened and has to earn its tier from its own evidence.
+
+  That omission is right on principle, not merely convenient: A2's premise is that
+  positional signal is NEGATIVE, so minting an `apparatus_membership` context record for
+  an A2 hit would assert exactly what A2 established is absent. A1 and A3 are positional
+  by construction, so giving them a context record restores parity with C1 rather than
+  granting a bonus. The asymmetry is now documented at the call site.
+
+### 26. The change converts "cannot verify" into "verified"
+
+On the default path all six strains reported `terminated_cleanly: false`, with A2 stating
+precisely why it could not run. On the all-CDS path all six terminated cleanly. That is
+the value of the change, and it is the honest framing: it does not make the answer better,
+it makes the completeness claim checkable.
+
+**Still not measured:** the other 42 strains, and anything the 6 labelled strains do not
+cover.
 
 ---
 

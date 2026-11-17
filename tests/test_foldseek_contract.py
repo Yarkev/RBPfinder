@@ -368,3 +368,53 @@ def test_a2_does_not_double_flag_a_cds_with_both_signals(rules):
         structural_tophits={"T_CDS_0002": "7ung-assembly1_o1"},
         ml_results=["T_CDS_0002"])
     assert len(hits) == 1
+
+
+# ------------- an A2 reopen must confer no evidence family (stage6 rule, pilot-verified)
+
+def _bare_cds(cds_id="X_CDS_0016", product="virion structural protein"):
+    return {"cds_id": cds_id, "product": product, "function": "unknown function",
+            "phrog": None, "annotation_method": "none", "annotation_source": "none",
+            "length_aa": 200, "start_nt": 1, "end_nt": 603, "strand": "+",
+            "translation": "M" + "A" * 199, "tophit_protein": None,
+            "evalue": None, "bitscore": None, "fident": None,
+            "qstart": None, "qend": None, "qlen": None, "qcov": None,
+            "prostt5_confidence": None, "category_proportions": {},
+            "spans_origin": False, "translation_source": "genbank",
+            "raw_locus_tag": "x", "contig_id": "c"}
+
+
+def test_an_a2_reopen_grants_no_genomic_context_family(rules):
+    """`stage6_recovery_confers_no_tier_advantage`: the reopen itself adds no family.
+
+    A2's premise is that positional signal is NEGATIVE, so a context record for an A2 hit
+    would assert what A2 established is absent -- and would hand the CDS a free G family,
+    raising tier_e purely for having been reopened. The pilot benchmark promoted two CDS
+    through A2; this is what makes that promotion their own evidence rather than a gift.
+    """
+    from rbpfinder.evidence import normalize
+    recs = normalize.build(_bare_cds(), {"S6-A2"}, rules, {})
+    assert [r for r in recs if r["family"] == "G"] == []
+
+
+def test_a1_and_a3_reopens_do_grant_context_parity(rules):
+    """A1 and A3 are positional by construction, so a context record restores the parity
+    a Stage 1 channel would have given. Same rule, not an exception."""
+    from rbpfinder.evidence import normalize
+    for tag in ("S6-A1", "S6-A3"):
+        recs = normalize.build(_bare_cds(), {tag}, rules, {})
+        g = [r for r in recs if r["family"] == "G"]
+        assert len(g) == 1, tag
+        assert g[0]["direction"] == "supports_apparatus_membership"
+
+
+def test_s6_a2_is_not_in_the_context_channel_list():
+    """Pins the omission against a future 'fix' that adds it back for symmetry."""
+    import inspect
+    from rbpfinder.evidence import normalize
+    src = inspect.getsource(normalize.build)
+    ctx_loop = [ln for ln in src.splitlines() if 'for ch in (' in ln]
+    assert ctx_loop, "the context channel loop moved; re-pin this test"
+    assert '"S6-A2"' not in ctx_loop[0], (
+        "S6-A2 was added to the context channels: an A2 reopen would then grant a free G "
+        "family, which stage6_recovery_confers_no_tier_advantage forbids")

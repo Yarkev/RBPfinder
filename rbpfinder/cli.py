@@ -531,8 +531,17 @@ def run(args):
         # Local structure hits reach the A2 probe ONLY when the search covered the whole
         # genome. A2 asks which CDS have structural signal but no positional signal; a
         # pool-scoped search cannot answer that, because nothing outside the pool was
-        # looked at. This also keeps --foldseek-all-cds honest about "changes no
-        # conclusion": it changes what the audit can RUN, never the pool or the tiers.
+        # looked at.
+        #
+        # This used to claim the flag "changes no conclusion: it changes what the audit
+        # can RUN, never the pool or the tiers". The pilot benchmark disproved the second
+        # half. A2 reopens the pool; reopened CDS are then classified like any other, so
+        # new candidates appear and stage7's "top up Primary with the strongest R2" can
+        # admit them -- measured on N136, where Primary went from 1 to 3. What does NOT
+        # change is the tier a given CDS earns from a given evidence set, and the reopen
+        # provenance itself confers no family: S6-A2 is deliberately absent from
+        # normalize's context channels, because A2's premise is that positional signal is
+        # NEGATIVE and minting an apparatus-membership record would assert the opposite.
         a2_structural = (stage3_prov.get("tophits")
                          if stage3_prov.get("scope") == "all_cds" else None)
         # `ml_results` is deliberately not passed: the rules specify a C6 external-ML
@@ -1265,14 +1274,15 @@ def main(argv=None):
     p.add_argument("--no-local-stage3", action="store_true",
                    help="do not run local Foldseek even if it is configured")
     p.add_argument("--foldseek-all-cds", action="store_true",
-                   help="EXPERIMENTAL, benchmark pending. Run local Foldseek on every "
-                        "CDS, not just the nominated pool. Slower (ProstT5 is CPU-bound "
-                        "without a GPU). It changes no nomination or tier; what it "
-                        "changes is that the A2 completeness audit becomes runnable. "
-                        "Verified on one genome; the effect on complete-recall and on "
-                        "the false-complete invariant across the benchmark is not "
-                        "measured. Off by default, and the default is the validated "
-                        "working state")
+                   help="EXPERIMENTAL. Run local Foldseek on every CDS, not just the "
+                        "nominated pool. Slower (ProstT5 is CPU-bound without a GPU). "
+                        "It makes the A2 completeness audit runnable, which can change "
+                        "the pool and the Primary set through the reopen cycle -- it is "
+                        "not a no-op on the result. What it does not change is the tier "
+                        "a CDS earns from a given evidence set. Pilot benchmark on 6 "
+                        "labelled strains: false-complete 0/12 runs, complete-recall@K "
+                        "unchanged; the full 48-strain regression has not been run. Off "
+                        "by default, and the default is the validated working state")
     p.add_argument("--no-local-stage2", action="store_true",
                    help="do not search configured databases (fixtures, quick smokes, "
                         "reproduction runs)")

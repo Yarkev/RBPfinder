@@ -82,6 +82,21 @@ def build(rec, channels, rules, c2_matches, c5_details=None):
                   "tail-module CDS recovered by completeness audit A1"),
         "S6-A3": ("s6_a3_neighbourhood",
                   "flank of an assigned RBP recovered by completeness audit A3"),
+        # S6-A2 is DELIBERATELY ABSENT, and the omission is load-bearing.
+        #
+        # A2 asks which CDS carry structural signal while their POSITIONAL signal is
+        # negative. Minting a `supports_apparatus_membership` context record for an A2
+        # hit would assert precisely what A2 established is missing, and it would hand
+        # the CDS a free G family -- so being reopened would raise tier_e, and could
+        # reach R2 on its own, which `stage6_recovery_confers_no_tier_advantage` forbids
+        # ("it contributes nothing to tier_r or tier_e").
+        #
+        # A1 and A3 are positional by construction -- a tail-module CDS, the flank of an
+        # assigned RBP -- so giving them a context record restores the parity a
+        # Stage 1 channel would have given them. That is the same rule, not an exception
+        # to it.
+        #
+        # Do not add "S6-A2" to the tuple below for symmetry. `tests/` pins this.
     }
     for ch in ("C1", "C3", "C4", "S6-A1", "S6-A3"):
         if ch in channels:

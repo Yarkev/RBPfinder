@@ -459,21 +459,116 @@ Primary. The cause was evidence starvation, as diagnosed, not the vocabulary.
 
 ---
 
+### 33. The three vocabularies, measured before anything was changed (2026-11-18)
+
+Item 32 established that the gp17 failure was evidence starvation, not vocabulary. That
+removed the urgency but not the divergence, so it was measured rather than assumed. Three
+readers answer *does this text support receptor binding?* from three different maps:
+
+| | reads | covers | disagrees with `rbp_ontology` on |
+|---|---|---|---|
+| `stage2.annotation_term_map` | homolog / structure hit descriptions | 63 of 90 terms | **1** (`baseplate wedge`, non-binding either way) |
+| `stage4.direction_map` | a CDS's own product name | 44 of 90 | **3** (`tail fiber`, `tail fibre`, `tip attachment`) |
+| `rbp_ontology` | nothing — shadow | 90 | — |
+
+Terms neither live map covers: **0**. The ontology introduces no new vocabulary; it is a
+reconciliation. The incremental fixes (`tailspike` promoted, `lectin` removed) had already
+closed most of the gap, so the scientific question is now a single sentence: *does the part
+name "tail fiber protein" support receptor binding when it is the CDS's own product name,
+given that it does not when it is a homolog's description?*
+
+### 34. `explicit_rbp_terms` existed in only one of the three readers (2026-11-18)
+
+Found while preparing the unification, and it would have **regressed N4 gp65** had the
+ontology been adopted without it:
+
+```
+                                            stage4   stage2   ontology
+tail sheath and receptor binding protein    RB  ✓    struct   struct
+```
+
+`evidence_families.dual_role_precedence` states the rule as a veto — *"a structural name
+may never veto a positive binding result"* — so a homolog *described* like gp65 was being
+demoted on two of three paths, not just an edge case in the product-name reader. The guard
+now lives in `terms.explicit_rbp_claim` and is honoured by `terms.classify` (mode-gated,
+so `current` stays bit-identical) and by `ontology.classify` (unconditional, because it is
+what makes the ontology adoptable at all).
+
+This is why the comparison has **three** arms: the guard is a separate, rule-mandated
+change, and bundling it with the unification would make any regression unattributable.
+
+### 35. `vocabulary.mode` — the unification is selectable, and the default does not move
+
+`rules.vocabulary.mode` ∈ `{current, explicit_guard, unified}`, default `current`, exposed
+as `--vocabulary` and recorded in `run_result.json`. `current` reproduces the frozen
+behaviour exactly; the new `Rules.set_override` keeps the YAML on disk untouched, so no run
+is ever explained by an edited rules file. The YAML block names the forbidden use in as
+many words: changing the default to make a particular genome look better.
+
+Measured delta on a 12-CDS probe genome with PHROG annotations (needed — without an
+annotation the product-name direction only reaches a weak G record and the change is
+invisible):
+
+```
+CDS   product                                    current        unified
+0004  tail fiber protein                         R2-E2 rank 1   R3-E2 rank 7   ***
+0006  tip attachment protein                     R2-E2          R3-E2          ***
+0005  tailspike protein            (control)     R2-E2 rank 2   R2-E2 rank 1
+0007  gp65-class, explicit claim   (control)     R2-E2 rank 4   R2-E2 rank 2
+Primary: [0004, 0005, 0006, 0007]  ->  [0005, 0007]
+```
+
+`explicit_guard` produced **zero** differences from `current` here, which is what makes the
+rest attributable to the unification alone. Both controls held and the two genuine RBPs
+moved **up**. Also measured, and recorded
+rather than hidden: `unified` loses the helper-noun distinction (`tail fiber assembly
+protein` reads apparatus, not structural_only — non-binding either way, but the role label
+changes), and 28 terms gain an opinion the product-name reader did not have.
+
+`unified` deliberately does **not** adopt the ontology's `interpretation_confidence`, which
+would move strengths as well as directions. That is a second variable.
+
+### 36. A comparison harness, because this change moves tiers (2026-11-18)
+
+`packaging/comparison/compare_arms.py` runs the same genomes under N arms and diffs tier
+changes, Primary membership, reference-RBP rank moves, false-complete and hard-negative
+ceiling lifts; it resumes, and it makes no judgement about whether a change is good.
+`packaging/comparison/VOCABULARY-COMPARISON.md` is the plan: the arms, the acceptance
+conditions, and the risk that decides this.
+
+That risk, stated before the 42-strain run rather than after: **T7 gp17's product name is
+"tail fiber protein"**, so `unified` flips its D record to apparatus and may undo the
+DB_PHAGE gain from item 32. It holds `R2` only if S or T still carries a functional term.
+So the question the benchmark answers is not "did anything change" but *do the reference
+RBPs keep their tier and their place in Primary?* — and it must be run with DB_PHAGE
+configured, or it measures `unified` against a starved baseline and will look far more
+destructive than it is.
+
+The harness is code, not curated data, so it sits in `packaging/comparison/` rather than a
+`benchmark/` directory, which `.gitignore` excludes at any depth.
+
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend
   across the cut they overlap on the circle without merging. That needs the largest
   anchor-free gap to be smaller than the two extensions reaching into it — rare, unlike
   the origin-splitting defect this replaced.
-- **`tail fiber` is judged oppositely by two vocabularies**: `stage4.direction_map` reads
-  it as receptor-binding on a CDS's own product name, while `stage2.annotation_term_map`
-  reads it as `apparatus` on a homolog or structure hit. Since that is the most common
-  real-world RBP description, homolog evidence systematically fails to produce a
-  receptor-binding family. `rbp_ontology` holds the reconciled vocabulary but is still
-  shadow: adopting it moves tiers and needs the benchmark.
+- **`tail fiber` is still judged oppositely by two vocabularies in the default mode**:
+  `stage4.direction_map` reads it as receptor-binding on a CDS's own product name, while
+  `stage2.annotation_term_map` reads it as `apparatus` on a homolog or structure hit. Since
+  that is the most common real-world RBP description, homolog evidence systematically fails
+  to produce a receptor-binding family. `rbp_ontology` now reaches the product-name reader
+  under `--vocabulary unified` (items 33-36), but the default is unchanged and stays
+  unchanged until the 42-strain comparison says otherwise.
 - Bare `receptor` and bare `lectin` are absent from `stage2.annotation_term_map`, so
   "receptor recognition protein" and "C-type lectin domain-containing protein" read as
   uninformative. Same dependency.
+- **`unified` has no helper-noun vocabulary.** `rbp_ontology` holds no "assembly
+  protein" / "chaperone" terms, so under `unified` a chaperone reads `apparatus` instead
+  of `structural_only`. Both are non-binding and neither is promoted, but the role label
+  degrades to `unresolved`. Adding helper terms is a further vocabulary change with its
+  own measurement.
 - Upstream items left alone: the missing `scripts/` referenced by `transports.py` and
   `KNOWN_ISSUES.md`; `packaging/install/*` expecting a `runtime/*.whl` that only exists
   in a release bundle; internal milestone logs and `standing_authorisation` in the rules

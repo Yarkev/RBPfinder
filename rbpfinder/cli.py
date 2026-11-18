@@ -179,6 +179,10 @@ def run(args):
         print("cannot locate the packaged rules/schema; pass --rules and --schema")
         return 2
     rules = Rules(rules_path)
+    if args.vocabulary:
+        # A run parameter, not a threshold: recorded in the run result so a number is
+        # always attributable to the vocabulary that produced it.
+        rules.set_override("vocabulary.mode", args.vocabulary)
     sch = schema_mod.load(schema_path)
 
     # ---- Remote submission is DISABLED in this build -----------------------------
@@ -700,6 +704,8 @@ def run(args):
         # produced nothing".
         "annotation": annotation.provenance() if annotation else None,
         "uniprot_enrichment": None,        # filled in below, after the candidates exist
+        "vocabulary": {"mode": rules.get("vocabulary.mode"),
+                       "overridden": bool(rules.overrides)},
         "stage2_local": stage2_prov,
         "stage3_local": stage3_prov,
         "stage2_remote": (remote.provenance() if remote else None),
@@ -1291,6 +1297,18 @@ def main(argv=None):
                         "$RBPFINDER_PROSTT5_MODEL")
     p.add_argument("--no-local-stage3", action="store_true",
                    help="do not run local Foldseek even if it is configured")
+    p.add_argument("--vocabulary", choices=["current", "explicit_guard", "unified"],
+                   default=None,
+                   help="which vocabulary decides evidence direction. `current` (the "
+                        "default, and the frozen behaviour) keeps the homolog reader and "
+                        "the product-name reader on their own term maps. "
+                        "`explicit_guard` additionally lets EVERY reader honour "
+                        "stage4.explicit_rbp_terms, so an explicit receptor-binding "
+                        "claim is not vetoed by a co-occurring structural word. "
+                        "`unified` additionally gives the product-name reader the "
+                        "rbp_ontology reading. Anything but `current` MOVES TIERS and is "
+                        "a measurement instrument: a result is only comparable with "
+                        "another result from the same mode, which the run records")
     p.add_argument("--foldseek-all-cds", action="store_true",
                    help="EXPERIMENTAL. Run local Foldseek on every CDS, not just the "
                         "nominated pool. Slower (ProstT5 is CPU-bound without a GPU). "

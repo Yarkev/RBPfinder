@@ -296,6 +296,20 @@ wrong against an upstream tool — a column a real binary cannot produce, a patt
 does not match a real database's identifiers — is legitimate, and must be recorded in
 `CHANGES-linux.md` and reported to the user with the evidence.
 
+### `--vocabulary` is for comparison, not for tuning
+
+Three readers judge whether a description supports receptor binding, from three term maps
+that do not fully agree. `--vocabulary {current,explicit_guard,unified}` selects which is
+authoritative so the difference can be *measured*; `current` is the default and reproduces
+the frozen behaviour exactly. The mode used is recorded in `run_result.json`, and results
+from different modes are not comparable with each other.
+
+Run the default unless the user asks for a comparison. Under `unified`, `tail fiber
+protein` as a CDS's own product name reads as apparatus membership rather than receptor
+binding, which changes tiers — so switching modes to make a particular candidate appear is
+the same prohibited move as editing a threshold. `packaging/comparison/` holds the plan and
+the harness.
+
 ## References
 
 - `references/KNOW_HOW.md` — the procedure and the failure modes it prevents

@@ -52,6 +52,29 @@ def _has(text, terms, token_terms=()):
     return out
 
 
+def mode(rules):
+    """Which vocabulary reading is authoritative for this run. See `vocabulary` in YAML."""
+    return rules.get("vocabulary.mode", "current")
+
+
+def explicit_rbp_claim(text, rules):
+    """Does this text make an EXPLICIT receptor-binding claim?
+
+    `stage4.explicit_rbp_terms`: "receptor binding", "adsorption protein" and the like --
+    a claim about function, not a word that happens to co-occur. The distinction is
+    grammatical: is the RBP word the claim, or a modifier on something else?
+
+    It lived only in `normalize._direction`, so the protection covered a CDS's own
+    product name and neither of the other two readers. A homolog described "tail sheath
+    and receptor binding protein" was demoted to structural_only -- the veto
+    `evidence_families.dual_role_precedence` forbids in as many words: "a structural name
+    may never veto a positive binding result". N4 gp65 is the standing case.
+    """
+    low = (text or "").lower()
+    return any(str(e).lower() in low
+               for e in rules.get("stage4.explicit_rbp_terms", []))
+
+
 def classify(text, rules):
     """Return (category, matched_terms).
 
@@ -93,6 +116,11 @@ def classify(text, rules):
     pos = _has(text, rules.get(base + ".positive_rbp_terms"), token_terms)
     struct = _has(text, rules.get(base + ".structural_only_terms"), token_terms)
     if pos and struct:
+        # An explicit functional claim is not a compound-title accident. Outside
+        # `current` this reader honours the same exception the product-name reader
+        # always has; in `current` the frozen behaviour is reproduced exactly.
+        if mode(rules) != "current" and explicit_rbp_claim(text, rules):
+            return POSITIVE, sorted(set(pos + struct))
         return STRUCTURAL, sorted(set(pos + struct))
     if pos:
         return POSITIVE, pos

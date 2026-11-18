@@ -22,6 +22,8 @@ MILESTONE_*.md
 DEVELOPER.md
 INSTALL.md
 RELEASE.md
+# Curated benchmark data and run outputs. The comparison HARNESS is code, not data,
+# and lives in packaging/comparison/ so that this boundary stays absolute.
 benchmark/
 *.xlsx
 settings.local.json

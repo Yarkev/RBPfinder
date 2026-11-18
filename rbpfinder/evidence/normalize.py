@@ -1,5 +1,8 @@
 """Turn channel hits and annotator output into schema-shaped evidence records."""
 
+from . import ontology as _ontology
+from . import terms as _terms
+
 _PHROG_TOOL = "pharokka_phrog"
 _PHOLD_TOOL = "phold_prostt5"
 
@@ -19,6 +22,16 @@ def _direction(product, rules):
     RBP term AND a non-RBP identity, the non-RBP reading wins; when it names a
     positive term and a structural one, the structural reading wins.
     """
+    # `unified`: one vocabulary answers the direction question for every reader. The
+    # measured delta on a CDS's own product name is three curated terms -- `tail fiber`,
+    # `tail fibre`, `tip attachment` -- which this map reads as receptor-binding and the
+    # ontology reads as apparatus membership, agreeing with the measured 2026-08-19
+    # decision that took "tail fiber protein" out of the homolog vocabulary because the
+    # whole fibre cluster shares that annotation. The ontology also has an opinion on 28
+    # terms this map is silent about. See `vocabulary` in the YAML; `current` is default.
+    if _terms.mode(rules) == "unified":
+        return _ontology.classify(product, rules)["direction"]
+
     dm = rules.get("stage4.direction_map")
     matched = {}
     for bucket in rules.get("stage4.direction_precedence"):

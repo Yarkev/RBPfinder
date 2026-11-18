@@ -4455,6 +4455,58 @@ interpro_remote:
 # STATUS: SHADOW. Nothing reads this yet. `terms.classify` is unchanged and the frozen
 # M14D product numbers are untouched until the delta has been measured and accepted.
 # =============================================================================
+# =============================================================================
+# VOCABULARY MODE -- which reading of a text decides its evidence direction.
+#
+# Three readers answer the same question ("does this text support receptor binding?")
+# from three different vocabularies, and they have drifted apart in two specific ways.
+# This selects which of them is authoritative, so the difference can be MEASURED one
+# step at a time instead of adopted in one jump. `current` is the default and reproduces
+# the frozen behaviour exactly.
+#
+# Measured 2026-11-18 against the tree, not estimated:
+#
+#   current          stage2.annotation_term_map reads homolog/structure descriptions;
+#                    stage4.direction_map reads a CDS's own product name; rbp_ontology
+#                    is shadow. stage2 and the ontology now agree on all but ONE term
+#                    (`baseplate wedge`, and both readings are non-binding, so it cannot
+#                    change whether something is an RBP candidate).
+#
+#   explicit_guard   current, plus stage4.explicit_rbp_terms applied by EVERY reader
+#                    rather than only by the product-name reader. Today a homolog
+#                    described "tail sheath and receptor binding protein" is demoted to
+#                    structural_only, which is the veto
+#                    evidence_families.dual_role_precedence forbids: "a structural name
+#                    may never veto a positive binding result". N4 gp65 is the standing
+#                    case and it is protected on one path out of three.
+#
+#   unified          explicit_guard, plus rbp_ontology deciding direction for a CDS's
+#                    own product name too. The delta is three curated terms --
+#                    `tail fiber`, `tail fibre`, `tip attachment` -- which stage4 reads
+#                    as receptor-binding and the ontology reads as apparatus membership,
+#                    agreeing with the measured 2026-08-19 decision that took "tail
+#                    fiber protein" out of the positive vocabulary because the whole
+#                    fibre cluster shares that annotation. It also gives the
+#                    product-name reader an opinion on 28 terms it is currently silent
+#                    about (LamG, CBM, discoidin, hyaluronidase, xylanase ... and
+#                    collagen, fibritin, Ig-like, trimerisation on the structural side).
+#
+# What `unified` does NOT take is rbp_ontology's `interpretation_confidence`, which
+# would change STRENGTHS as well as directions. That is a second variable and belongs
+# in its own measurement.
+#
+# Anything other than `current` moves tiers and must not become the default before the
+# benchmark says what it did. The run records which mode produced it.
+vocabulary:
+  mode: current
+  modes: [current, explicit_guard, unified]
+  default_is_frozen_behaviour: true
+  recorded_in_run_result: true
+  forbidden: >
+    changing the default to make a particular genome's result look better. The mode is a
+    measurement instrument; a result is only comparable to another result from the same
+    mode.
+
 rbp_ontology:
   status: M20B2_SHADOW
   live: false

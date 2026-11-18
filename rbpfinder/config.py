@@ -18,8 +18,25 @@ class Rules:
     def __init__(self, path):
         self.path = pathlib.Path(path)
         self._d = yaml.safe_load(self.path.read_text(encoding="utf-8"))
+        self._overrides = {}
+
+    def set_override(self, dotted, value):
+        """Override one key for THIS run, without touching the file.
+
+        For run parameters only -- `vocabulary.mode` is the case this exists for -- never
+        for a threshold. A comparison arm that required editing the rules file could not
+        be reproduced from a command line, and the edit would outlive the comparison.
+        Overrides are recorded in the run result so a number is always attributable.
+        """
+        self._overrides[dotted] = value
+
+    @property
+    def overrides(self):
+        return dict(self._overrides)
 
     def get(self, dotted, default=_MISSING):
+        if dotted in self._overrides:
+            return self._overrides[dotted]
         cur = self._d
         for part in dotted.split("."):
             if not isinstance(cur, dict) or part not in cur:

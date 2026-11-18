@@ -69,7 +69,16 @@ def classify(text, rules):
     rb = [h for h in hits if "receptor_binding" in h["roles"]]
     struct = [h for h in hits if "structural_only" in h["roles"]
               and "receptor_binding" not in h["roles"]]
-    if rb and struct:
+    if rb and struct and terms.explicit_rbp_claim(text, rules):
+        # The exception this reader was missing. Without it the conservative rule below
+        # demoted "tail sheath and receptor binding protein" -- N4 gp65, a standing
+        # regression case confirmed by both adsorption experiments and the 9LC0 cryo-EM
+        # structure -- to structural_only. That is the veto `dual_role_precedence`
+        # forbids, so adopting this vocabulary without the guard would have regressed a
+        # documented case. Found before adoption, 2026-11-18.
+        best = sorted(rb, key=lambda h: (_RANK[h["interpretation_confidence"]],
+                                         -len(h["term"])))[0]
+    elif rb and struct:
         best = sorted(struct, key=lambda h: (_RANK[h["interpretation_confidence"]],
                                              -len(h["term"])))[0]
     else:

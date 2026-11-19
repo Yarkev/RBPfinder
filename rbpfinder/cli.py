@@ -25,6 +25,17 @@ from . import return_binding
 from . import uniprot_enrichment as uniprot
 from . import evidence_acquisition as evacq
 from .errors import CapabilityUnavailable, InputValidationError
+
+
+def _package_version():
+    """The installed distribution's version, or a value that says it is not installed.
+
+    Read from metadata rather than written in a second place: a hardcoded string here
+    would be a third version number to keep in step with pyproject and the rules file,
+    and the whole point of recording it is that it cannot drift.
+    """
+    from . import __version__
+    return __version__
 from .policy import DataPolicy
 from . import schema as schema_mod
 from .ingest import phold as phold_in
@@ -710,6 +721,15 @@ def run(args):
         "uniprot_enrichment": None,        # filled in below, after the candidates exist
         "vocabulary": {"mode": rules.get("vocabulary.mode"),
                        "overridden": bool(rules.overrides)},
+        # Every result must say which software and which rules produced it. The rules
+        # file has claimed since v1 that "a run cites the rules version"; it did not --
+        # no version string appeared anywhere in run_result.json, so a benchmark number
+        # could not be attributed to a release. `package` comes from the installed
+        # distribution metadata, so it reads 0+unknown in an uninstalled source tree,
+        # which is itself worth seeing in the output.
+        "versions": {"package": _package_version(),
+                     "rules": rules.get("meta.version"),
+                     "schema": schema_path.name},
         "stage2_local": stage2_prov,
         "stage3_local": stage3_prov,
         "stage2_remote": (remote.provenance() if remote else None),

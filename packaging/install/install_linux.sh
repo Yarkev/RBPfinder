@@ -150,7 +150,12 @@ fi
 
 # --- 4. install the agent skill, if asked ----------------------------------------------
 if [ "$SKILL" != "none" ]; then
-    SRC="$ROOT/skill/rbpfinder"
+    # Two skill packages ship, and they are NOT interchangeable: family T (structural
+    # evidence) is only reachable inside a run on Linux, so each package tells the agent
+    # a different thing about what a run can establish. Install the Linux one here.
+    # Both declare `name: rbpfinder`, so the destination is the same either way.
+    SRC="$ROOT/skill/rbpfinder-linux"
+    [ -d "$SRC" ] || SRC="$ROOT/skill/rbpfinder"
     if [ "$SKILL" = "user" ]; then
         DST="$HOME/.claude/skills/rbpfinder"
     else
@@ -184,4 +189,4 @@ say "Verify with:"
 say "    ./verify_install.sh --prefix $PREFIX"
 say ""
 say "Nothing has been submitted anywhere and no sequence database was downloaded."
-say "Remote Stage 2 asks for authorization the first time you use it."
+say "Remote submission was removed: nothing this tool does leaves the machine. Configure a local BLAST database for family S."

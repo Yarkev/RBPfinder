@@ -142,6 +142,16 @@ def test_the_desktop_package_states_the_family_T_platform_wall():
     assert re.search(r"not looked for on this machine", text)
 
 
+def test_the_acquisition_plan_does_not_offer_an_authorisation_that_cannot_exist():
+    """The plan is printed on every run, so it is the most-read place this could claim a
+    capability. `not_authorised` is reached whenever authorisation is absent -- which is
+    always, since --allow-remote is refused before any ingest -- so wording it as "this
+    run is not authorised" invited the user to look for a run that would be."""
+    src = (ROOT / "rbpfinder" / "evidence_acquisition.py").read_text(encoding="utf-8")
+    assert "this run is not authorised to transmit" not in src
+    assert "was removed" in src
+
+
 # ------------------------------------------------------------------- structural integrity
 
 @pytest.mark.parametrize("pkg", PACKAGES, ids=["desktop", "linux"])

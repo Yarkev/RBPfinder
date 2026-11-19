@@ -9,7 +9,11 @@
 meta:
   # Kept in step with the package version on purpose: a run cites the rules version, and
   # a spec number that never moved while the package did makes that citation useless.
-  version: "1.2.1-linux"
+  # "In step" means BYTE-IDENTICAL to pyproject's `version`, and a test asserts it. It
+  # read "1.2.1-linux" while the package read "1.2.1+linux" -- close enough to look
+  # right in a diff, different enough that `pip show` and a run's own citation disagreed,
+  # and "-linux" is not even a valid PEP 440 local version.
+  version: "1.2.1+linux"
   scope: "Caudoviricetes"
   optimises: "complete-recall@K"
   provenance: "reverse-engineered from SMA phage work (SOP_v0.md); not yet calibrated"

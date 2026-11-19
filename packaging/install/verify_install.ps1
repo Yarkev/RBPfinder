@@ -70,14 +70,21 @@ print(p.is_file() and p.stat().st_size or 0)
     $blast = ($doctor | Select-String -Pattern "blastp" -Quiet)
     if ($blast) {
         Write-Host "       (doctor mentions blastp -- see its output for whether a local"
-        Write-Host "        database is configured; the remote profile does not need one)"
+        Write-Host "        database is configured. Without one there is no family S,"
+        Write-Host "        and there is no remote route -- it was removed)"
     }
 
+    # These used to assert that --help DOCUMENTED the EBI email and --allow-remote.
+    # Remote submission has since been removed, so they were requiring the install to
+    # advertise a capability that exits 2. They now verify the refusal instead.
     $help = & $venvExe --help 2>&1
-    Check "--help documents the EBI contact email" `
-        (($help | Out-String) -match "results are NOT sent to it") ""
-    Check "--help documents --allow-remote" `
-        (($help | Out-String) -match "--allow-remote") ""
+    Check "--help marks the remote backend as removed" `
+        (($help | Out-String) -match "REMOVED") ""
+    $refuseOut = & $venvExe --genbank NUL --phage-id V --out "$env:TEMP\rbpf_refuse" `
+        --allow-remote 2>&1
+    Check "--allow-remote is refused with exit 2" `
+        (($LASTEXITCODE -eq 2) -and (($refuseOut | Out-String) -match "remote submission is disabled")) `
+        "got exit $LASTEXITCODE"
 } finally {
     Pop-Location
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue

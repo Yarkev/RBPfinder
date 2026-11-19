@@ -603,6 +603,89 @@ document. Measured properly (counting Han codepoints rather than grepping a byte
 which matched the em-dashes in every English file): `ADVANCED.md` 25.5%, `KNOWN_ISSUES.md`
 29.5%, `USER_GUIDE.md` 28.1%. The translation decision is therefore about three files.
 
+### 39. A run now says which software and which rules produced it (2026-11-19)
+
+The rules file has claimed since v1 that *"a run cites the rules version"*. It did not —
+**no version string appeared anywhere in `run_result.json`**, across all 29 top-level
+keys. Every benchmark number produced so far is therefore unattributable to a release.
+
+The two version strings had also drifted: the package read `1.2.1+linux` and the rules
+read `1.2.1-linux`. Close enough to look right in a diff, different enough that `pip show`
+and a run's own citation disagreed — and `-linux` is not a valid PEP 440 local version at
+all, so it would normalise to something else again in distribution metadata.
+
+Both fixed. `meta.version` is now byte-identical to pyproject's, a run records
+`versions: {package, rules, schema}`, and the package number is read from distribution
+metadata rather than retyped, so there is no third copy to keep in step. In an uninstalled
+source tree it honestly reports `0+unknown`.
+
+A correction to what I told the maintainer beforehand: I warned that adding a field
+mid-benchmark could break comparability through schema validation. That was unfounded —
+`evidence_schema.json` has **zero** top-level properties and sets `additionalProperties`
+nowhere, and `vocabulary` (item 35) is not in it either and validated fine. Adding fields
+cannot break it. `tests/test_version_provenance.py` pins that too, so it stays true.
+
+### 40. The release bundle can actually be built (2026-11-19)
+
+`packaging/README.md` documented a bundle layout, and `install_linux.sh` /
+`install_windows.ps1` hard-required it — `runtime/<wheel>`, `runtime/wheels/`,
+`VERSION.json`, `SHA256SUMS.txt`. Nothing produced any of it:
+`scripts/build_release_bundle.py` was referenced twice by `.gitignore` and **did not
+exist**, along with the whole `scripts/` directory. So the installers had never been
+executed, and the README would have shipped with `{{VERSION}}` and `{{WHEEL}}` still in
+it.
+
+Written, and run. The builder takes the version from the wheel rather than retyping it,
+refuses to build when the rules version disagrees, substitutes the template, optionally
+downloads dependency wheels for offline install, writes `VERSION.json` and
+`SHA256SUMS.txt`, and then **verifies the result against what the installers actually
+read** — a missing file or a leftover placeholder fails the build.
+
+The internal-material boundary is enforced by rule rather than by memory, including
+`packaging/comparison/`: a user installs the analysis, not the instrument used to decide
+what the analysis should do. A file that is neither included nor forbidden stops the
+build, because it is one nobody has classified.
+
+Three things the first real build and install exposed:
+
+* **The bundle would have installed the wrong skill on Linux.** It ships
+  `install_linux.sh`, but only the desktop skill package, whose own text says "This is
+  the desktop / Windows package". Both packages now ship, `install_linux.sh` prefers
+  `skill/rbpfinder-linux`, and the builder requires it to be present — the installer's
+  fallback to the desktop package would otherwise be a silent wrong-skill install.
+* **Both verifiers asserted that the removed capability was advertised**: `--help
+  documents the EBI contact email` and `--help documents --allow-remote` were passing
+  checks. That is a gate which would have failed the day someone correctly removed the
+  flags. They now verify the refusal — `--allow-remote` exits 2 with its message —
+  which is the property a user depends on.
+* **Both installers closed with** *"Remote Stage 2 asks for authorization the first time
+  you use it."* Printed at the end of every successful install.
+
+Measured on a real build: wheel + 18 files, or 26 with dependency wheels; 20 MB archived.
+Both install paths were run for real — networked and `--offline` — each ending
+`VERIFY_INSTALL=PASS (11/11)`, with the correct Linux skill installed and an end-to-end
+run exiting 0 and citing `{"package": "1.2.1+linux", "rules": "1.2.1+linux"}`.
+
+### 41. The acquisition plan offered an authorisation that cannot exist (2026-11-19)
+
+Printed on every run, so the most-read place this could still claim a capability:
+
+```
+EBI Job Dispatcher (BLASTP)   AUTO   requested, but this run is not authorised to transmit
+```
+
+`not_authorised` is reached whenever authorisation is absent — which is **always**, since
+`--allow-remote` is refused before any ingest. Wording it as *this run* invited the user
+to go looking for a run that would be authorised. The status code is kept, because other
+readers key on it; the prose now says transmission was removed and names the two real
+routes. Found by reading the captured output of a test I was writing for something else.
+
+That makes **seven** places this one removed capability was still advertised: the desktop
+skill and four of its references, the `--stage2-backend` help text, the refusal messages'
+own parenthetical, two READMEs, the acquisition plan, both verifiers and both installers.
+The lesson is in item 37: the code was changed in one place and nothing checked that the
+things describing it agreed.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend
@@ -624,12 +707,22 @@ which matched the em-dashes in every English file): `ADVANCED.md` 25.5%, `KNOWN_
   of `structural_only`. Both are non-binding and neither is promoted, but the role label
   degrades to `unresolved`. Adding helper terms is a further vocabulary change with its
   own measurement.
+- **`--offline` dependency wheels are platform-specific.** `pip download` fetches
+  wheels for the interpreter and OS doing the build, so a bundle built on cp313/linux
+  cannot install offline on Windows or another Python minor version. `VERSION.json`
+  records exactly what it got (`offline_wheels_built_for`) rather than implying universal
+  coverage; a Windows offline bundle has to be built on Windows.
 - **Dead remote code is still in the tree.** `stage2_remote`, `interpro_remote` and
-  `_remote_consent` remain, with `interpro_remote` having no caller at all. The flags that
-  reached them are refused before any ingest, so this is unreachable rather than dangerous
-  — but finding it is not evidence that a remote route exists, and the docs now say so.
+  `_remote_consent` remain, with `interpro_remote` having no caller at all and
+  `--allow-remote-annotation` not even reaching argparse. Unreachable rather than
+  dangerous, and the docs now say that finding it is not evidence of a remote route.
   Removing it is a separate change.
-- Upstream items left alone: the missing `scripts/` referenced by `transports.py` and
-  `KNOWN_ISSUES.md`; `packaging/install/*` expecting a `runtime/*.whl` that only exists
+- **The licence is unresolved and now baked into a built artefact.** `LICENSE` says
+  `All rights reserved` and the wheel metadata says `Proprietary`. That is the repository's
+  current stated intent, so the bundle carries it; changing it later means re-cutting any
+  bundle already distributed.
+- Upstream items left alone: `transports.py` and `KNOWN_ISSUES.md` reference other
+  `scripts/` files that still do not exist (`benchmark_stage2_48.py`,
+  `m7c_pipeline_metrics.py`, `fetch_uniprot.ps1`, `pre_e4_localisation.py`); `packaging/install/*` expecting a `runtime/*.whl` that only exists
   in a release bundle; internal milestone logs and `standing_authorisation` in the rules
   file; `KNOWN_ISSUES.md` being the only Chinese document.

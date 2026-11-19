@@ -426,9 +426,14 @@ def plan(candidates_by_provider, rules, global_mode=None, per_provider=None,
             limitations.append("the user chose not to run this; no batch was written "
                                "and nothing was submitted")
         if status == "not_authorised":
+            # Reached whenever `authorised` is false -- which is ALWAYS, because
+            # --allow-remote is refused with exit 2 before any ingest. So this is not a
+            # "pass a flag and retry" state, and must not be worded as one. The status
+            # code is kept because other readers key on it; only the prose changes.
             limitations.append(
-                "automated mode was requested for %s and this build implements it, but "
-                "the run is not authorised to transmit; nothing was submitted" % name)
+                "%s needs transmission, which was removed from RBPfinder: no flag "
+                "authorises it and nothing was submitted. Use a local database, or "
+                "import results obtained elsewhere" % name)
         if status == "no_executor":
             limitations.append(
                 "automated mode was requested and the contract permits it, but this "
@@ -480,7 +485,7 @@ def render(plan_obj):
              "blocked_on_input": "waiting for structure input",
              "declined": "no batch written; nothing submitted",
              "no_executor": "requested, but not implemented in this build",
-             "not_authorised": "requested, but this run is not authorised to transmit",
+             "not_authorised": "needs transmission, which was removed; nothing sent",
              "not_applicable": "nothing requested"}
     for e in entries:
         mode = {"MANUAL_HANDOFF": "MANUAL", "AUTOMATED_REMOTE": "AUTO",

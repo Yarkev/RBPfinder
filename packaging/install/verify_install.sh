@@ -99,22 +99,33 @@ if [ "$dcode" -eq 0 ] || [ "$dcode" -eq 3 ]; then doctor_check_rc=0; else doctor
 check "doctor runs" "$doctor_check_rc" "exit $dcode"
 if printf '%s' "$doctor_out" | grep -q "blastp"; then
     echo "       (doctor mentions blastp -- see its output for whether a local"
-    echo "        database is configured; the remote profile does not need one)"
+    echo "        database is configured. Without one there is no family S, and"
+    echo "        there is no remote route -- it was removed)"
 fi
 
+# These two used to assert that --help DOCUMENTED the EBI contact email and
+# --allow-remote. Remote submission has since been removed from the tool, so those checks
+# were requiring the install to advertise a capability that exits 2 -- a gate that would
+# have failed the day someone correctly took the flags out. They now verify the refusal
+# instead, which is the property a user actually depends on.
+TMP_REFUSE="$(mktemp -u)"
 help_out="$("$VENV_EXE" --help 2>&1)"
-if printf '%s' "$help_out" | grep -q "results are NOT sent to it"; then
-    email_rc=0
+if printf '%s' "$help_out" | grep -q "REMOVED"; then
+    help_rc=0
 else
-    email_rc=1
+    help_rc=1
 fi
-check "--help documents the EBI contact email" "$email_rc" ""
-if printf '%s' "$help_out" | grep -q -- "--allow-remote"; then
-    allow_rc=0
+check "--help marks the remote backend as removed" "$help_rc" ""
+
+"$VENV_EXE" --genbank /dev/null --phage-id V --out "$TMP_REFUSE" --allow-remote \
+    >/dev/null 2>"$TMP_REFUSE.err"
+refuse_rc=$?
+if [ "$refuse_rc" -eq 2 ] && grep -q "remote submission is disabled" "$TMP_REFUSE.err"; then
+    refuse_ok=0
 else
-    allow_rc=1
+    refuse_ok=1
 fi
-check "--help documents --allow-remote" "$allow_rc" ""
+check "--allow-remote is refused with exit 2" "$refuse_ok" "got exit $refuse_rc"
 
 popd >/dev/null
 

@@ -213,6 +213,88 @@ def verify(bundle, wheel_name):
     return problems
 
 
+def check_skill_package(pkg):
+    """The gates a skill package has to pass before it is worth deploying.
+
+    Run here rather than only on the platform, because a rejected upload costs a
+    round trip and the failure modes are all local: invalid frontmatter, a reference
+    that does not resolve, a stray file nobody references, a path that exists only on
+    the machine that built it.
+    """
+    import yaml
+
+    sk = pkg / "SKILL.md"
+    if not sk.is_file():
+        return ["%s has no SKILL.md" % pkg]
+    text = sk.read_text(encoding="utf-8")
+    problems = []
+
+    if not text.startswith("---\n"):
+        problems.append("no YAML frontmatter")
+    else:
+        try:
+            fm = yaml.safe_load(text.split("---\n", 2)[1])
+        except Exception as exc:                                  # noqa: BLE001
+            fm = None
+            problems.append("frontmatter is not valid YAML: %s" % exc)
+        if isinstance(fm, dict):
+            for key in ("id", "name", "description"):
+                if not fm.get(key):
+                    problems.append("frontmatter is missing %s" % key)
+            if fm.get("name") != "rbpfinder":
+                problems.append("frontmatter name is %r, expected rbpfinder"
+                                % fm.get("name"))
+            if len(fm.get("description") or "") > 1024:
+                problems.append("description is over 1024 characters")
+        elif fm is not None:
+            problems.append("frontmatter is not a mapping")
+
+    refs = sorted(set(re.findall(r"references/[A-Za-z0-9_]+\.md", text)))
+    for ref in refs:
+        if not (pkg / ref).is_file():
+            problems.append("SKILL.md references a missing %s" % ref)
+    for path in sorted(pkg.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(pkg).as_posix()
+        if rel != "SKILL.md" and rel not in refs:
+            problems.append("%s ships but SKILL.md never references it" % rel)
+
+    for bad in re.findall(r"/home/\S+|/tmp/\S+|/mnt/\S+", text):
+        problems.append("machine-local path in SKILL.md: %s" % bad)
+    return problems
+
+
+def build_biomni_skill(out_root):
+    """The Biomni skill package on its own, with no wheel.
+
+    Biomni installs the code from a checkout (`setup_biomni.sh` runs `pip install`), so
+    the skill is deployed separately from the runtime and versions independently of it.
+    The tarball therefore carries no wheel, and the skill's own text names the version
+    it was written against.
+    """
+    pkg = ROOT / "packaging" / "biomni" / "skill" / "rbpfinder"
+    problems = check_skill_package(pkg)
+    if problems:
+        fail("the skill package would be rejected:\n    " + "\n    ".join(problems))
+    say("skill package gate PASSED")
+
+    version = rules_version()
+    out_root.mkdir(parents=True, exist_ok=True)
+    tgz = out_root / ("rbpfinder-biomni-skill-%s.tar.gz" % version)
+    with tarfile.open(tgz, "w:gz") as tf:
+        for path in sorted(pkg.rglob("*")):
+            if path.is_file():
+                tf.add(path, arcname=(pathlib.Path("rbpfinder")
+                                      / path.relative_to(pkg)).as_posix())
+    names = tarfile.open(tgz).getnames()
+    say("%d file(s): %s" % (len(names), ", ".join(names)))
+    print()
+    print("skill tarball: %s" % tgz)
+    print("extracts to:   rbpfinder/  (drop into the Biomni skills directory)")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -223,7 +305,16 @@ def main(argv=None):
                          "interpreter and OS, which VERSION.json records.")
     ap.add_argument("--archive", action="store_true",
                     help="also write .tar.gz and .zip next to the bundle directory")
+    ap.add_argument("--biomni-skill-only", action="store_true",
+                    help="build ONLY the Biomni skill tarball and exit. It extracts to "
+                         "rbpfinder/, which is what a Biomni skills directory expects, "
+                         "and carries no wheel -- the code is installed separately by "
+                         "packaging/biomni/setup_biomni.sh.")
     args = ap.parse_args(argv)
+
+    out_root_early = pathlib.Path(args.out_root)
+    if args.biomni_skill_only:
+        return build_biomni_skill(out_root_early)
 
     out_root = pathlib.Path(args.out_root)
     staging = out_root / "_wheel"

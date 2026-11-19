@@ -107,6 +107,59 @@ def test_the_readme_placeholders_are_the_ones_the_builder_substitutes():
     assert found <= {"{{VERSION}}", "{{WHEEL}}"}, found
 
 
+# ------------------------------------------------------- the Biomni skill package gate
+
+BIOMNI_SKILL = ROOT / "packaging" / "biomni" / "skill" / "rbpfinder"
+
+
+def test_the_shipped_biomni_skill_passes_its_own_gate(builder):
+    """Run the gate here rather than only on the platform: a rejected upload costs a
+    round trip and every failure mode is local."""
+    assert builder.check_skill_package(BIOMNI_SKILL) == []
+
+
+def test_the_gate_catches_a_stray_file(builder, tmp_path):
+    """A file nobody references is either dead weight or a reference someone forgot to
+    add. Both are worth stopping for, and a passing gate that catches nothing is worse
+    than no gate."""
+    import shutil
+    pkg = tmp_path / "rbpfinder"
+    shutil.copytree(BIOMNI_SKILL, pkg)
+    (pkg / "references" / "ORPHAN.md").write_text("stray", encoding="utf-8")
+    problems = builder.check_skill_package(pkg)
+    assert any("never references it" in p for p in problems), problems
+
+
+def test_the_gate_catches_a_missing_reference(builder, tmp_path):
+    import shutil
+    pkg = tmp_path / "rbpfinder"
+    shutil.copytree(BIOMNI_SKILL, pkg)
+    (pkg / "references" / "KNOW_HOW.md").unlink()
+    problems = builder.check_skill_package(pkg)
+    assert any("missing references/KNOW_HOW.md" in p for p in problems), problems
+
+
+def test_the_gate_catches_a_machine_local_path(builder, tmp_path):
+    """A path that resolves only on the machine that built the package is a dead
+    instruction once it is deployed somewhere else."""
+    import shutil
+    pkg = tmp_path / "rbpfinder"
+    shutil.copytree(BIOMNI_SKILL, pkg)
+    sk = pkg / "SKILL.md"
+    sk.write_text(sk.read_text(encoding="utf-8") + "\nSee /mnt/results/notes.md\n",
+                  encoding="utf-8")
+    problems = builder.check_skill_package(pkg)
+    assert any("machine-local path" in p for p in problems), problems
+
+
+def test_the_skill_tells_the_agent_to_cite_the_versions():
+    """A tier or a rank only means something against the rules that produced it, and the
+    run has recorded both since this release."""
+    text = (BIOMNI_SKILL / "SKILL.md").read_text(encoding="utf-8")
+    assert "`versions`" in text
+    assert "0+unknown" in text
+
+
 # ------------------------------------------- the verifier checks the refusal, not the flag
 
 def test_the_verifiers_check_the_refusal_rather_than_requiring_the_flag():

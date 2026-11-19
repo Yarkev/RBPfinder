@@ -686,6 +686,25 @@ own parenthetical, two READMEs, the acquisition plan, both verifiers and both in
 The lesson is in item 37: the code was changed in one place and nothing checked that the
 things describing it agreed.
 
+### 42. The Biomni skill package has a repeatable build and a local gate (2026-11-19)
+
+`python3 scripts/build_release_bundle.py --biomni-skill-only` emits
+`rbpfinder-biomni-skill-<version>.tar.gz`, which extracts to `rbpfinder/` — the layout a
+Biomni skills directory expects. It carries **no wheel**: Biomni installs the code from a
+checkout via `setup_biomni.sh`, so the skill deploys separately from the runtime, and the
+two must be updated together or the skill documents flags the installed code lacks.
+
+The gate runs before the tarball is written, because a rejected upload costs a round trip
+and every failure mode is local: invalid frontmatter, a missing `name`, an over-long
+description, a reference that does not resolve, a file that ships without being
+referenced, and a path that exists only on the machine that built it. Each of those has a
+test that confirms the gate *catches* it — a gate that passes everything is worse than
+none.
+
+SKILL.md also now tells the agent to quote `versions` and `vocabulary` whenever it reports
+a number, and to say so explicitly when `package` reads `0+unknown`, which means the tool
+is running from a source tree that was never installed rather than a released version.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend

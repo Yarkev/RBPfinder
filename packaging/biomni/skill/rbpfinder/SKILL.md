@@ -278,6 +278,12 @@ Preserve these when summarising:
 ## Completion checks
 
 - Confirm the run exited 0 and cite `run_result.json` and the report files.
+- **Quote `versions` when you report a number.** Every run records
+  `versions: {package, rules, schema}` and `vocabulary: {mode, overridden}`. A tier, a
+  rank or a completeness state is only meaningful against the rules that produced it, so
+  a result reported without them cannot be compared with a later one. If `package` reads
+  `0+unknown`, the tool is running from a source tree that was never installed — say so,
+  because that is not a released version.
 - Quote the completeness state as produced. **Do not claim biological completeness when
   RBPfinder reports `partial` or `limited`.**
 - Exit codes: `0` success, `2` validation failed, `3` missing capability, `1` unexpected

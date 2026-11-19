@@ -606,7 +606,7 @@ which matched the em-dashes in every English file): `ADVANCED.md` 25.5%, `KNOWN_
 ### 39. A run now says which software and which rules produced it (2026-11-19)
 
 The rules file has claimed since v1 that *"a run cites the rules version"*. It did not —
-**no version string appeared anywhere in `run_result.json`**, across all 29 top-level
+**no version string appeared anywhere in `run_result.json`**, across all 30 top-level
 keys. Every benchmark number produced so far is therefore unattributable to a release.
 
 The two version strings had also drifted: the package read `1.2.1+linux` and the rules

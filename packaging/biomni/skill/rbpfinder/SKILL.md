@@ -39,13 +39,27 @@ Validated for tailed dsDNA bacteriophages (Caudoviricetes) only. Do not claim va
 support for RNA phages, ssDNA phages, filamentous phages, archaeal viruses, or tailless
 phages. If the user brings one of those, say so before running rather than after.
 
-## This build is offline by design
+## Which skill package this is
 
-All remote submission paths are **disabled**: EBI BLAST, remote InterProScan, HHpred web,
+This is the **Linux server** package, and the one that reaches the full evidence set: it
+is the only platform where family T, structural evidence, is produced *inside* a run. A
+second package (`packaging/skill/rbpfinder/`) covers Windows and desktop machines, where
+Foldseek has no native build and family T needs the manual web route. The two are not
+interchangeable — what you can honestly tell a user a run established differs between
+them.
+
+## Offline by design
+
+All remote submission paths are **removed**: EBI BLAST, remote InterProScan, HHpred web,
 Foldseek web, AlphaFold Server, cloud annotation and remote UniProt enrichment do not
-exist here. `--allow-remote`, `--data-policy remote_allowed` and `--stage2-backend ebi`
-are refused with exit code 2. Never suggest them, never attempt them, never transmit a
-user sequence anywhere.
+exist. `--allow-remote`, `--data-policy remote_allowed` and `--stage2-backend ebi` are
+refused with exit code 2, before any ingest. Never suggest them, never attempt them,
+never transmit a user sequence anywhere.
+
+The refusal is **not** a property of this build — it is unconditional in the source, so
+there is no other build to send a user to for a remote route. `--help` still lists `ebi`
+as a `--stage2-backend` choice; it parses and is then refused, so do not read the help
+text as a capability.
 
 Evidence comes from: a local BLAST database (**if one is configured**), a local Foldseek
 install (**if one is configured**), results the user already has on disk (import mode), or

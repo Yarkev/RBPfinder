@@ -85,7 +85,6 @@ Once installed, ask in plain language:
 ```
 Analyse phage_X.gbk with RBPfinder.
 The host is Stenotrophomonas maltophilia.
-EBI remote Stage 2 is allowed.
 ```
 
 Or run it directly:
@@ -94,16 +93,23 @@ Or run it directly:
 rbpfinder --genbank phage_X.gbk --phage-id X --out runs\X
 ```
 
-## Two profiles
+## Where evidence comes from
 
 | Profile | You need | Sequences leave the machine? |
 |---|---|---|
-| **remote** (default) | this bundle only | yes — to EMBL-EBI, after an explicit disclosure and per-run authorization |
-| **local** | this bundle + BLAST+ + a sequence database package | no |
+| ~~**remote**~~ | — | **removed.** `--allow-remote`, `--data-policy remote_allowed` and `--stage2-backend ebi` are each refused with exit code 2, before any ingest |
+| **local** (the only route) | this bundle + BLAST+ + a sequence database package | no |
+| **import** | results obtained by hand elsewhere | no |
 
-The remote profile is the default deliberately: it means a new machine needs no multi-
-hundred-megabyte database download. Choose **local** when the sequences are unpublished or
-confidential — see `skill/rbpfinder/references/DATA_POLICY.md`.
+Sequences never leave the machine, on any platform. That costs something real on a desktop
+and the trade-off is stated rather than hidden: without a local BLAST database there is no
+family S, and family T needs Foldseek, which has no native Windows build. A Linux server
+reaches every family locally.
+
+A remote profile used to be the default, so that a new machine needed no multi-hundred-
+megabyte download. That convenience is what was given up: a flag which is merely off by
+default is still a flag someone sets under deadline pressure, and a refused one is not.
+See `skill/rbpfinder/references/DATA_POLICY.md`.
 
 Sequence databases are **not** in this bundle. They ship as separate, separately versioned
 data packages, so the software and the data can be upgraded and audited independently.

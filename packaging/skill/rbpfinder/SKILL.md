@@ -1,6 +1,6 @@
 ---
 name: rbpfinder
-description: Prioritize receptor-binding protein candidates from tailed dsDNA bacteriophage genomes using the installed RBPfinder CLI. Use when analyzing an annotated phage GenBank file for candidate RBPs.
+description: Prioritize receptor-binding protein candidates from tailed dsDNA bacteriophage genomes using the installed RBPfinder CLI, on a Windows or desktop machine. Use when analyzing an annotated phage GenBank file for candidate RBPs. For a Linux server, where local Foldseek structural evidence is reachable inside the run, use the Linux package instead.
 ---
 
 # RBPfinder
@@ -18,8 +18,24 @@ Do not claim validated support for RNA phages, ssDNA phages, filamentous phages,
 archaeal viruses, or tailless phages unless a later release explicitly adds them. If the
 user brings one of those, say so before running rather than after.
 
-Platform: **Windows is validated.** Linux and macOS are not yet validated — the
-dependency wheels in this bundle are built for one platform and Python minor version.
+## Which skill package this is
+
+This is the **desktop / Windows** package. There is a second package for Linux servers
+(`packaging/biomni/skill/rbpfinder/`) and it is not interchangeable with this one: the two
+platforms differ in *which evidence families are reachable*, which changes what you should
+tell the user a run can and cannot establish.
+
+| | Windows (this package) | Linux server |
+|---|---|---|
+| Family S, sequence homology | local BLAST database, if the user installs one | same |
+| Family T, structure | **no native Foldseek build exists** — manual web route or import only | local Foldseek + ProstT5, inside the run |
+| Remote submission | refused (see below) | refused |
+
+Platform validation: **Linux is the validated route** as of v1.2.1 — it was verified
+end-to-end against real Foldseek, a real structure database and a real BLAST database.
+Windows runs, and was validated for earlier releases, but family T is not reachable inside
+a run there, so a Windows run reaches a lower ceiling on the same genome. Say that before
+running, not after. macOS is not validated.
 
 ## Before analysis
 
@@ -37,19 +53,18 @@ dependency wheels in this bundle are built for one platform and Python minor ver
    the same readers the analysis uses, and names exactly what is wrong. Run it *before*
    any expensive annotation step too (phold is an hour or more on CPU), and before
    starting an analysis you would otherwise discover is impossible at the end.
-3. Determine whether Stage 2 runs locally or at EBI (see `references/DATA_POLICY.md`).
-4. For EBI remote Stage 2, before submitting anything:
-   - state that **candidate protein sequences** and an **EBI contact email** will be
-     transmitted to EMBL-EBI;
-   - state that the email is EBI Job Dispatcher contact information — **not** an
-     RBPfinder account, and **not** where results are delivered;
-   - state that RBPfinder polls, downloads and parses the results automatically;
-   - **never imply the user must fetch or return BLAST results manually**;
-   - require explicit per-run authorization (`--allow-remote`).
+3. Establish where Stage 2 evidence will come from. There are exactly two routes, and
+   **neither transmits anything**:
+   - `--stage2-backend local` (the default) searches configured BLAST databases. With no
+     database configured, family S is simply absent and the run says so.
+   - `--data-policy import_only` parses results the user obtained elsewhere by hand.
 
-   RBPfinder enforces all of this itself and refuses before transmission if the email or
-   the authorization is missing. Your job is to make sure the user understands it, not to
-   re-implement the check.
+   Remote submission does not exist in this codebase: `--allow-remote`,
+   `--data-policy remote_allowed` and `--stage2-backend ebi` are each refused with exit
+   code 2, before any ingest. Never offer them, never describe an EBI route as available,
+   and never ask the user for a contact email for one. See `references/DATA_POLICY.md`.
+4. If family S matters for this genome and no database is configured, say so **before**
+   the run rather than explaining a thin result afterwards. `rbpfinder doctor` reports it.
 
 ## Run
 
@@ -72,12 +87,16 @@ Useful additions:
   only when it covers this organism; otherwise it is skipped and the reason recorded.
 - `--host-taxid <id>` — required for a remote host search. RBPfinder never guesses a
   taxonomy id, and neither should you.
-- ~~`--stage2-backend ebi ... --allow-remote`~~ — **not available in this build.**
-  This Linux/Biomni build refuses `--allow-remote`, `--data-policy remote_allowed` and
-  `--stage2-backend ebi` with exit code 2. Nothing leaves the machine. On a server that
-  can download Foldseek, a structure database and a BLAST database, every evidence family
-  is reachable locally, so no capability is given up. Use the local backend, or
+- ~~`--stage2-backend ebi ... --allow-remote`~~ — **removed from the tool.** Every
+  remote submission path is refused with exit code 2, on every platform, before any
+  sequence is read. Nothing leaves the machine. The `--help` text for
+  `--stage2-backend` still lists `ebi` as a choice; it parses and is then refused, so do
+  not read that help text as a capability. Use the local backend, or
   `--data-policy import_only` to parse results obtained elsewhere.
+
+  On Windows this does cost something real, and you should be straight with the user about
+  it: without a local BLAST database there is no family S, and family T needs the manual
+  web route either way. That is a lower evidence ceiling than a Linux server reaches.
 
 Write every run into a **new** output directory. Never overwrite an input file.
 
@@ -102,17 +121,23 @@ to trust the run.
 
 A single run tells you what is worth testing. It does not, by itself, tell you what is
 independently corroborated — that usually needs HHpred, AlphaFold or Foldseek results a
-person has to submit by hand, since those default to manual handoff. The exception is
-**local Foldseek on Linux** (above): when it is configured, family-T structural evidence
-is produced inside the run itself, so many candidates are already corroborated before any
-manual step. Check `Local Stage 3` in `rbpfinder doctor` before falling back to the
-manual loop for structure. When the user wants a
-Primary or Rescue candidate actually resolved — not just left at its tier — follow
-`references/INTERACTIVE_CONFIRMATION.md`: propose what's missing from the batch files
-`rbpfinder run` already wrote, get the raw result back (manual by default; automated only
-on explicit request, and never without a token-cost warning first), reclassify with
+person has to submit by hand, since those default to manual handoff.
+
+**On Windows there is no way around this for structure.** Foldseek has no native Windows
+build, so family T cannot be produced inside a run here; a Linux server can, which is the
+single biggest difference between the two packages. Do not quietly let a Windows run's
+missing family T read as "no structural support" — it is "not looked for on this machine".
+
+When the user wants a Primary or Rescue candidate actually resolved — not just left at its
+tier — follow `references/INTERACTIVE_CONFIRMATION.md`: propose what's missing from the
+batch files `rbpfinder run` already wrote, get the raw result back, reclassify with
 `--stage2-manifest`, and repeat until the candidate set is resolved or nothing further is
-findable. Do not skip straight to the automated path because it seems faster.
+findable.
+
+Getting the result back is **manual by default**. The alternative is *you* driving the
+third-party web service in a browser on explicit request, which is expensive in tokens and
+needs a cost warning first — it is not RBPfinder transmitting anything, and it is not the
+removed remote path coming back. Do not skip straight to it because it seems faster.
 
 ## Scientific invariants
 

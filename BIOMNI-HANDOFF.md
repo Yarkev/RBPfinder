@@ -158,8 +158,8 @@ a time.
 | | |
 |---|---|
 | **Licence (review I6)** | `All rights reserved` on a public repository: readable and clonable, legally not reusable. If community use or citation is the goal, this needs an open licence. |
-| **`KNOWN_ISSUES.md` is Chinese** (I5) | Every other document is English, and this is the file users most need. Translation is mechanical but substantial. |
-| **`cli.py` is ~1300 lines** (S1) | Splitting the Stage 0–7 orchestration out would help testability. Large diff; better after the scientific items settle. |
+| **Three documents are Chinese** (I5) | `KNOWN_ISSUES.md` (29.5% Han), `USER_GUIDE.md` (28.1%), `ADVANCED.md` (25.5%). Earlier notes said KNOWN_ISSUES was the only one — that was measured with a byte-range grep that matched em-dashes in every English file. Translation is mechanical but three files' worth. |
+| **`cli.py` is 1380 lines** (S1) | Splitting the Stage 0–7 orchestration out would help testability. Large diff; better after the scientific items settle. |
 | **M family is behind the field** (S3) | C6 hooks PhageRBPdetect / DepoScope / SpikeHunter, all `calibration: pending`. PLM and structure methods have moved on. |
 
 ---

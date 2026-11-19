@@ -36,7 +36,8 @@ UTF-8 BOM            支持（Windows 工具默认会写）
 合并之后只做一轮：
 
 ```bash
-# 1. 批量跑完，自动化能做的（本地 BLAST、EBI 远程 InterProScan 若已授权）都已完成
+# 1. 批量跑完，自动化能做的（本地 BLAST；Linux 上还有本地 Foldseek）都已完成
+#    远程路径已移除：远程 InterProScan 不再是这一遍的一部分
 rbpfinder bulk run --manifest genomes.tsv --out-root results/
 
 # 2. 把所有株仍缺 HHpred 的候选合并成一份 batch

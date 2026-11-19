@@ -1,79 +1,69 @@
 # What leaves the machine, and when
 
-RBPfinder decides this once per run, before anything is transmitted. The default is that
-**nothing leaves**.
+**Nothing.** Not by default, and not with any flag.
 
-## The three modes
+Every remote submission path was removed from the tool. This page exists so that an agent
+reading it stops offering one, and so the reason is on record.
+
+## The refusals
+
+These three are checked **before any ingest**, so a refused run never reaches a transport:
 
 ```
-private          nothing is transmitted. Local databases only.
-remote_allowed   transmission is permitted, but still requires per-run authorization.
-import_only      no search runs at all; existing results are parsed and replayed.
+--allow-remote                    -> exit 2
+--data-policy remote_allowed      -> exit 2
+--stage2-backend ebi              -> exit 2
+```
+
+`--help` still lists `ebi` as a `--stage2-backend` choice and still documents
+`remote_allowed`. Both parse and are then refused. **Do not read the help text as a
+capability**; this page and the exit code are authoritative.
+
+The disclosure-and-authorization machinery those flags used to drive is still in the
+source (`stage2_remote`, `interpro_remote`, `_remote_consent`) but is unreachable —
+`interpro_remote` has no caller at all. Finding that code is not evidence that a remote
+route exists.
+
+## The two modes that do work
+
+```
+private       nothing is transmitted. Local databases only.  (default)
+import_only   no search runs at all; existing results are parsed and replayed.
 ```
 
 Set with `--data-policy`. The default comes from the packaged rules, not from the
 conversation.
 
-## `remote_allowed` is not sufficient on its own
+`import_only` is the route for evidence a person obtained by hand — an HHpred run, a
+Foldseek web search, a BLAST at a server somewhere. RBPfinder parses it with the same
+parser and the same evidence builder it would have used itself, so nothing downstream
+knows or cares how the file arrived.
 
-A run that may transmit still has to be authorized:
+## Why remote was removed rather than defaulted off
 
-```
---data-policy remote_allowed     the mode permits it
---allow-remote                   this particular run is authorized
-```
+The decision was the maintainer's, and it was made for the server case: on a machine that
+can download Foldseek, a structure database and a BLAST database, **every evidence family
+is reachable locally**, so transmitting sequences buys nothing and costs the user their
+confidentiality. A flag that is off by default is still a flag someone sets under
+deadline pressure; a refused flag is not.
 
-Without `--allow-remote`, nothing is sent. RBPfinder prints the disclosure and refuses.
+Be straight about what this costs on a desktop, though:
 
-## What remote Stage 2 actually sends
-
-```
-Remote Stage 2 uses EMBL-EBI.
-
-The following data will be transmitted:
-- candidate protein sequences
-- contact email required for EBI job submission
-
-RBPfinder will retrieve and parse the BLAST results automatically.
-You will not need to return any result files manually.
-```
-
-That notice is printed before the first sequence leaves, **including** when the run is
-authorized by `--allow-remote` — the flag authorizes, it does not silence. What was
-disclosed is also recorded in `run_result.json` under `stage2_remote.disclosure`, so a
-consent that happened can still be shown afterwards.
-
-## The email
-
-```
-EBI contact email
-Used only as contact information for the EMBL-EBI Job Dispatcher.
-RBPfinder retrieves results automatically.
-```
-
-It is **not** an RBPfinder account and results are **not** delivered to it. The service
-requires a contact address for jobs submitted to it; that is its entire purpose here.
-
-RBPfinder will not invent one, and neither should an agent. Use a real address the user
-controls — a lab or project address is fine, `@localhost` and made-up addresses are not.
-
-## Refusals, and when they happen
-
-All three happen **before transmission**, with zero submissions attempted:
-
-```
-backend=ebi + no email            -> exit 2, nothing sent
-backend=ebi + no authorization    -> exit 3, nothing sent
-data policy forbids transmission  -> exit 3, nothing sent
-```
-
-## Choosing a profile
-
-| Profile | Needs | Sequences leave the machine? |
+| | Windows / desktop | Linux server |
 |---|---|---|
-| `remote` (default for new installs) | RBPfinder + Python dependencies | yes, to EMBL-EBI, with disclosure and authorization |
-| `local` | RBPfinder + BLAST+ + the sequence databases | no |
+| Family S, sequence homology | needs a local BLAST database the user installs | same |
+| Family T, structure | not reachable in-run — no native Foldseek build | local Foldseek + ProstT5 |
 
-Choose `local` when the sequences are unpublished, confidential, or under an agreement
-that forbids third-party submission. That is the case `private` mode exists for, and it is
-the user's call, not an agent's.
+So on Windows with no local database, a run honestly reports that it found little, because
+little was reachable. That is the intended behaviour and not a bug to route around. The
+remedy is to configure a local database, or to use a Linux server, or to bring results in
+with `import_only` — never to look for a remote path.
+
+## What an agent should do with this
+
+- Never ask the user for a contact email for a submission. There is no submission.
+- Never describe an EBI route as available, slow, or worth trying.
+- Before a run, say which families are actually reachable on this machine
+  (`rbpfinder doctor` reports it) rather than explaining a thin result afterwards.
+- If the user asks for remote search specifically, say it was removed by design, and give
+  them the three real options above.

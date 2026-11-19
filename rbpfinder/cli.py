@@ -185,25 +185,29 @@ def run(args):
         rules.set_override("vocabulary.mode", args.vocabulary)
     sch = schema_mod.load(schema_path)
 
-    # ---- Remote submission is DISABLED in this build -----------------------------
-    # The linux/biomni build ships local-search and import modes only: on a server that
-    # can download Foldseek, a structure database and a BLAST database, every evidence
-    # family is reachable locally, so nothing is given up by refusing to transmit.
+    # ---- Remote submission is REMOVED, on every platform -------------------------
+    # The reasoning was the server case: on a machine that can download Foldseek, a
+    # structure database and a BLAST database, every evidence family is reachable
+    # locally, so transmitting sequences buys nothing and costs the user their
+    # confidentiality. These refusals are NOT conditional on the platform, so they apply
+    # to a desktop install from this same source, where the cost is real -- no local
+    # BLAST database means no family S, and Foldseek has no native Windows build. That
+    # trade-off is documented in the desktop skill package rather than hidden.
     # The check sits before any ingest or provider code -- a refused run must never
     # reach a transport. DataPolicy below stays as a second, independent gate.
     if getattr(args, "allow_remote", False):
         raise InputValidationError(
-            "remote submission is disabled in this build (linux/biomni): "
+            "remote submission is disabled in RBPfinder: "
             "--allow-remote is not available. Run the local backend with a configured "
             "BLAST database, or import existing results with --data-policy import_only.")
     if getattr(args, "data_policy", None) == "remote_allowed":
         raise InputValidationError(
-            "remote submission is disabled in this build (linux/biomni): "
+            "remote submission is disabled in RBPfinder: "
             "--data-policy remote_allowed is not available. Valid modes: private, "
             "import_only.")
     if getattr(args, "stage2_backend", None) == "ebi":
         raise InputValidationError(
-            "remote submission is disabled in this build (linux/biomni): "
+            "remote submission is disabled in RBPfinder: "
             "--stage2-backend ebi is not available. Use --stage2-backend local.")
 
     # ---- Data policy: decided ONCE, right after Stage 0 ingest, then obeyed ----
@@ -1261,11 +1265,17 @@ def main(argv=None):
                         "maltophilia'. A configured DB_HOST is used only when it covers "
                         "this organism; without it the host database is skipped and the "
                         "reason recorded")
+    # `ebi` stays a parseable choice so that an old command line gets the explicit
+    # refusal in main() -- with the exit code and the reason -- rather than argparse's
+    # "invalid choice", which says nothing about why. The help text must not advertise
+    # it as a capability; the refusal is unconditional and happens before any ingest.
     p.add_argument("--stage2-backend", choices=["local", "ebi"], default="local",
                    help="where Stage 2 sequence evidence comes from. `local` searches "
-                        "configured BLAST databases (default). `ebi` submits candidate "
-                        "sequences to EBI, which requires remote_allowed plus per-run "
-                        "authorisation. An explicit choice is never silently swapped")
+                        "configured BLAST databases (default). `ebi` is REMOVED: it "
+                        "parses and is then refused with exit code 2, as are "
+                        "--allow-remote and --data-policy remote_allowed. Nothing "
+                        "leaves this machine. An explicit choice is never silently "
+                        "swapped")
     p.add_argument("--ebi-endpoint",
                    default="https://www.ebi.ac.uk/Tools/services/rest/ncbiblast",
                    help="EBI Job Dispatcher REST endpoint")

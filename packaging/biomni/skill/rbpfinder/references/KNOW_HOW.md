@@ -110,9 +110,11 @@ Everything is done by running the `rbpfinder` executable. There is no Python API
   tailless phages, or archaeal viruses.
 - A bare genome FASTA cannot be analysed directly — annotate it first. RBPfinder refuses
   it rather than guessing a gene caller, because a different caller changes CDS boundaries.
-- **This build has no remote path at all.** EBI BLAST, remote InterProScan, HHpred web,
-  Foldseek web, the AlphaFold Server and cloud annotation are refused with exit code 2.
-  Never suggest them and never transmit a user sequence anywhere.
+- **There is no remote path at all**, and not only in this build: the refusal is
+  unconditional in the source, so there is no other build to send a user to. EBI BLAST,
+  remote InterProScan, HHpred web, Foldseek web, the AlphaFold Server and cloud
+  annotation are refused with exit code 2. Never suggest them and never transmit a user
+  sequence anywhere.
 - Local structure search needs Foldseek, a structure database and the ProstT5 weights on
   the machine; `rbpfinder doctor` reports whether `Local Stage 3` is AVAILABLE. It is
   Linux-only (Foldseek has no native Windows build) and transmits nothing.

@@ -89,7 +89,9 @@ rbpfinder --genbank phage_X.gbk --phage-id X --out runs/X
 ```
 
 Or, once the skill is installed, ask an agent in plain language: *"Analyse phage_X.gbk
-with RBPfinder. The host is Stenotrophomonas maltophilia. EBI remote Stage 2 is allowed."*
+with RBPfinder. The host is Stenotrophomonas maltophilia."* Nothing is transmitted: every
+remote submission path is refused with exit code 2, so configure a local BLAST database
+(and, on Linux, local Foldseek) for the evidence families to be reachable.
 
 To drive it from a **Biomni** hosted sandbox (a custom tool plus a one-shot setup that
 installs Foldseek and the structure database for local Stage 3), see

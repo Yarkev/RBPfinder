@@ -548,6 +548,61 @@ The harness is code, not curated data, so it sits in `packaging/comparison/` rat
 `benchmark/` directory, which `.gitignore` excludes at any depth.
 
 
+### 37. The desktop skill package advertised a capability the tool refuses (2026-11-19)
+
+Found while auditing the two skill packages, and worse than drift — the desktop
+`SKILL.md` asserted three incompatible things at once:
+
+* "Windows is validated. Linux and macOS are not yet validated"
+* a full EBI pre-flight protocol: disclose the transmission, collect a contact email,
+  require `--allow-remote`
+* "not available in this build. This Linux/Biomni build refuses `--allow-remote` …"
+
+The third was edited in by `a774bd1`, which standardised the *server* route and bled into
+the wrong package. An agent reading this would have walked a user through an
+authorization flow for a path that exits 2 before any ingest.
+
+The same staleness ran through the references: `DATA_POLICY.md` called `remote` the
+"default for new installs" and documented the disclosure flow as live; `USER_GUIDE.md`
+gave a copy-pasteable `--stage2-backend ebi --data-policy remote_allowed --allow-remote`
+command line; `INTERACTIVE_CONFIRMATION.md` listed "InterProScan via its existing remote
+path" as part of the automated bulk pass — `interpro_remote` has **no caller left in the
+tool**. `OUTPUT_GUIDE.md` still explained exit 2 as "missing EBI email". Outside the
+packages, `README.md` and `packaging/README.md` carried the same claim, including an
+example prompt telling the user to say *"EBI remote Stage 2 is allowed."*
+
+Three further inconsistencies in the tool itself, which is what let the docs look
+plausible:
+
+* `--stage2-backend`'s help text still described `ebi` as submitting sequences "which
+  requires remote_allowed plus per-run authorisation". It now says REMOVED. The choice
+  stays parseable on purpose, so an old command line gets the explicit refusal and its
+  reason rather than argparse's "invalid choice".
+* The three refusal messages said "disabled in this build (linux/biomni)" although the
+  refusal is **unconditional in the source**. A desktop user would reasonably have gone
+  looking for a build that allows it. Now "disabled in RBPfinder".
+* The comment above the refusals explained only the server rationale. It now records
+  that the refusals apply to a desktop install from the same source, where the cost is
+  real, and that the trade-off is documented rather than hidden.
+
+Both packages now state which one they are, point at the other, and say the difference is
+not cosmetic: **family T is only reachable inside a run on Linux**. The desktop skill says
+plainly that a missing family T there means "not looked for on this machine", not "no
+structural support" — the distinction `searched-no-hit is not not-run` already makes
+everywhere else.
+
+`tests/test_skill_packages.py` (26 tests) pins all of it: no skill doc may put a refused
+flag in a runnable command line, the desktop package may not ask for a contact email,
+neither may frame the refusal as this build's doing, and each must point at the other.
+Checked retrospectively against `HEAD` — the suite catches **12** of the defects above.
+
+### 38. Correction: three documents are Chinese, not one (2026-11-19)
+
+Item I5 and §5 of the handoff both recorded `KNOWN_ISSUES.md` as the only Chinese
+document. Measured properly (counting Han codepoints rather than grepping a byte range,
+which matched the em-dashes in every English file): `ADVANCED.md` 25.5%, `KNOWN_ISSUES.md`
+29.5%, `USER_GUIDE.md` 28.1%. The translation decision is therefore about three files.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend
@@ -569,6 +624,11 @@ The harness is code, not curated data, so it sits in `packaging/comparison/` rat
   of `structural_only`. Both are non-binding and neither is promoted, but the role label
   degrades to `unresolved`. Adding helper terms is a further vocabulary change with its
   own measurement.
+- **Dead remote code is still in the tree.** `stage2_remote`, `interpro_remote` and
+  `_remote_consent` remain, with `interpro_remote` having no caller at all. The flags that
+  reached them are refused before any ingest, so this is unreachable rather than dangerous
+  — but finding it is not evidence that a remote route exists, and the docs now say so.
+  Removing it is a separate change.
 - Upstream items left alone: the missing `scripts/` referenced by `transports.py` and
   `KNOWN_ISSUES.md`; `packaging/install/*` expecting a `runtime/*.whl` that only exists
   in a release bundle; internal milestone logs and `standing_authorisation` in the rules

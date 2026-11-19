@@ -153,9 +153,10 @@ done by hand at a keyboard.
 This loop is written for one genome. For bulk-scale work — dozens of phages — do not run
 it once per genome; that turns into dozens of separate manual HHpred/Foldseek rounds for
 no reason. Use `rbpfinder bulk run` first (`USER_GUIDE.md`), which sweeps every genome
-through whatever *is* automatable (local BLAST; InterProScan via its existing remote path,
-same consent as a single run) and leaves each genome's own batch files exactly as a single
-run would. Then `rbpfinder bulk merge-batches` / `bulk apply-returns` (`ADVANCED.md`)
+through whatever *is* automatable — local BLAST, and local Foldseek on Linux — and leaves
+each genome's own batch files exactly as a single run would. Remote InterProScan is **not**
+part of that pass any more: every remote submission path is refused with exit code 2, and
+`interpro_remote` has no caller left in the tool. Do not offer it. Then `rbpfinder bulk merge-batches` / `bulk apply-returns` (`ADVANCED.md`)
 collapse every genome's *remaining* HHpred/Foldseek need into ONE combined manual round —
 the user submits once, and the results route back to each genome automatically (a foreign
 row is safely refused, never misattributed — `cds_id` is phage-prefixed and the binding

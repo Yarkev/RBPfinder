@@ -98,7 +98,9 @@ Worth quoting when a user asks how a result was reached:
 
 ```
 0  success
-2  input error          bad GenBank, missing required argument, missing EBI email
-3  capability missing   no blastp, no configured database, remote not authorized
+2  input error          bad GenBank, missing required argument, or a removed
+                       remote flag (--allow-remote, --data-policy remote_allowed,
+                       --stage2-backend ebi) -- refused before any ingest
+3  capability missing   no blastp, no configured database
 1  unexpected internal error  -- this one is a defect, report it with the traceback
 ```

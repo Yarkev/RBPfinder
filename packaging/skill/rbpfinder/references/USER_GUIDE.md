@@ -218,45 +218,35 @@ limited    风险大到短清单本身不可靠，不要把 Primary+Rescue 当�
 
 「网络环境奇怪」不会变成整个 RBPfinder 安装失败。
 
-### 7.1 在线 BLAST（`--stage2-backend ebi`）：会发生什么
+### 7.1 在线 BLAST（`--stage2-backend ebi`）：已移除
 
-不想在本机下载几百 MB 的序列库时，Stage 2 可以交给 EMBL-EBI 跑。提交前
-RBPfinder 一定会先把这段话打给你看:
-
-```
-Remote Stage 2 uses EMBL-EBI.
-
-The following data will be transmitted:
-- candidate protein sequences
-- contact email required for EBI job submission
-
-RBPfinder will retrieve and parse the BLAST results automatically.
-You will not need to return any result files manually.
-```
-
-**关于那个邮箱，最容易误会的一点:**
+**这条路已经不存在了。** 所有远程提交路径都被拒绝，退出码 2，在读取任何序列之前：
 
 ```
-EBI contact email
-Used only as contact information for the EMBL-EBI Job Dispatcher.
-RBPfinder retrieves results automatically.
+--allow-remote                 -> exit 2
+--data-policy remote_allowed   -> exit 2
+--stage2-backend ebi           -> exit 2
 ```
 
-它**不是** RBPfinder 的登录账号,**结果也不会寄到这个邮箱**。它是 EBI Job
-Dispatcher 对提交的任务要求的联系方式,仅此而已。BLAST 结果由 RBPfinder 自己
-轮询、下载、解析——**你不需要等邮件,不需要去 EBI 网页上手工跑一遍,
-也不需要把结果文件交回来。**
+`--help` 里仍然列着 `ebi` 这个选项，也仍然写着 `remote_allowed`——它们能被解析，
+然后被拒绝。**不要把 help 文本当成能力。**
 
-命令行上必须用 `--allow-remote` 明确授权;没有它就不会有任何一条序列离开这台机器:
+设计决定是维护者做的，理由是服务器场景：一台能下载 Foldseek、结构库和 BLAST 库的
+机器，**每个证据家族都能在本地拿到**，所以传出序列换不来任何东西，只是让用户失去
+机密性。默认关闭的开关仍然是一个会在赶进度时被打开的开关；被拒绝的开关不是。
 
-```bash
-rbpfinder --genbank x.gbk --out out/ --phage-id X   --stage2-backend ebi --data-policy remote_allowed --allow-remote   --ebi-email you@your-institution.example
+桌面端的代价要如实说明：没有本地 BLAST 库就没有家族 S，而家族 T 在 Windows 上
+本来就只能走手工网页路线（Foldseek 没有原生 Windows 构建）。此时运行会诚实地
+报告它没找到多少东西——因为确实没有多少东西是可达的。补救办法是配一个本地库、
+换 Linux 服务器，或者用 `--data-policy import_only` 把手工拿到的结果导进来，
+**而不是去找远程路径**。
+
+两个真正可用的模式：
+
 ```
-
-`--allow-remote` 是授权,不是"别再提示我"——那段告知在授权的情况下照样打印,
-并且连同你被告知的内容一起写进 `run_result.json` 的 provenance。
-
-不给邮箱、或者不给 `--allow-remote`,运行会在**任何序列被发送之前**停下并说明原因。
+private       不传输任何东西，只用本地数据库。（默认）
+import_only   完全不跑搜索，解析并回放已有结果。
+```
 
 ## 8. 退出码
 

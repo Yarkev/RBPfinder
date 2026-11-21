@@ -2,7 +2,7 @@
 
 Read from the code, not from SKILL.md. Where the two disagree, §5 says so.
 
-Current as of **`v1.2.6+linux`**. Revised 2026-11-21 against a Biomni test round, which
+Current as of **`v1.2.7+linux`**. Revised 2026-11-21 against a Biomni test round, which
 corrected an attribution in §2 that was mine and wrong — the correction is quoted in
 place rather than edited away.
 
@@ -230,7 +230,7 @@ run_flags             e.g. REMOTE_SUBMISSION_BLOCKED, STRUCTURAL_SCREEN_UNAVAILA
 ```
 
 `top_unresolved_candidates` is present only when the shortlist is empty or
-`completeness` is `limited`, so the key count is **32 or 33** at `v1.2.6+linux` — not a
+`completeness` is `limited`, so the key count is **32 or 33** at `v1.2.7+linux` — not a
 fixed number, and not a number worth quoting: this document has stated it wrong three
 times (29, then 31, then 31-or-32, each true of a different commit). Count it from a run
 if you need it. It is presentation-only: those CDS are not promoted to Rescue and are not counted
@@ -336,7 +336,26 @@ baselines to check against.
 
 5. **`uninformative` dominates when searching PDB.** Titles are crystallographic
    descriptions, not functional annotations. A structural hit can be excellent and carry
-   no functional word, so T rarely lifts a true RBP alone.
+   no functional word.
+
+   **This is not "T rarely matters", which an earlier version of this line implied and
+   which is wrong.** It is true of a well-annotated CDS, where D and S already carry the
+   reading. On a **dark-matter** CDS — "hypothetical protein", so no D, and no homolog
+   hit, so no S — T is the only family that can say anything at all:
+
+   ```
+   G only            R3-E1   can never enter Primary
+   G + functional T  R2-E2   enters
+   ```
+
+   So T is load-bearing exactly where this tool is most needed: poorly annotated
+   genomes. It also gates audit **A2**, which asks which CDS carry structural signal
+   while their positional signal is negative — a whole recall-recovery route, not a
+   completeness nicety — and it is what the `structure_annotation_conflict` signal reads,
+   so without T a part-name false positive is invisible. Only `pdb100` and `cath50` count
+   as *functional* structure databases; the AFDB-derived labels are capped at apparatus
+   membership by `stage3.apparatus_only_databases` and cannot rescue the dark-matter
+   case.
 
 15. **The presentation signals are fitted to one genome.** §4a. Of the six
     assembly-context words, exactly one — `baseplate` — has fired on real data. The other

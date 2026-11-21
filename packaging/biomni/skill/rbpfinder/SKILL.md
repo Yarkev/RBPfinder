@@ -7,7 +7,7 @@ visibility: "public"
 starting-prompt: "Analyse this phage GenBank file with RBPfinder and tell me which proteins to test first as receptor-binding proteins."
 ---
 
-# RBPfinder (linux/biomni build, v1.2.6+linux)
+# RBPfinder (linux/biomni build, v1.2.7+linux)
 
 Use the installed `rbpfinder` executable. **Do not reproduce or replace its scientific
 decision rules in model reasoning.** The rules live in the package's frozen
@@ -291,6 +291,14 @@ accurate phold.gbk       + S + T   Primary: + CDS_0052 (gp17)        gp17  R2-E3
 So when the user wants better answers on a poorly-annotated genome, **the accurate route
 (phold) does more than any database or flag.** Say that rather than sending them to
 configure another library.
+
+**But do not read that as "family T is optional".** It is the strongest route only for a
+CDS that *has* an annotation to improve. On a dark-matter CDS — "hypothetical protein", so
+no D record, and no homolog hit, so no S — T is the only family that can say anything:
+`G` alone caps at `R3-E1` and can never enter Primary, while `G` plus a functional T hit
+reaches `R2-E2`. T also gates audit A2, a whole recall-recovery route, and it is what the
+`structure_annotation_conflict` signal reads. A run without local Foldseek is weakest
+precisely on the genomes that need it most, and `limitations` says so — quote it.
 
 ### When the user has a structure, the structure outranks the annotation
 

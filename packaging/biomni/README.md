@@ -96,6 +96,74 @@ registered skill.
 `/mnt/results/` is a deployment. Keep edits in the repo and redeploy, so the registered
 skill and the code it drives cannot drift.
 
+### When the Foldseek CDN refuses you
+
+Measured 2026-11-21 from a Biomni sandbox: `foldseek databases` returned **429**
+(Cloudflare `error code: 1027`) for `PDB` and `ProstT5`, with no mirror offered and
+retries not clearing it. The binary itself had downloaded fine earlier, so this is a
+per-host or per-size limit on data-centre IPs, not an outage.
+
+**Do not treat family T as optional while you wait.** Without it, a dark-matter CDS caps
+at `R3-E1` and can never enter Primary, audit A2 cannot run, and the
+`structure_annotation_conflict` signal has nothing to read. A run is weakest precisely on
+the genomes that need it most.
+
+Work through these in order; the first one is a diagnostic that tells you which of the
+rest is worth trying.
+
+**1. Read the download hosts out of the binary you already have.**
+
+```bash
+strings "$(command -v foldseek)" | grep -oE 'https?://[^"]+' | sort -u
+```
+
+`foldseek databases` has historically served some downloads from a university host rather
+than the CDN that rate-limited you. If a non-Cloudflare host appears, fetch from it
+directly with `curl -C -` (resumable) and point `--foldseek-db` at the result. This costs
+nothing to check and decides everything after it.
+
+**2. Check whether ProstT5 is already on the machine.** phold runs ProstT5 + Foldseek
+itself, so a working `phold install` means those weights were fetched from somewhere that
+is *not* rate-limiting you.
+
+```bash
+find /workspace -iname '*prostt5*' -o -iname '*.gguf' 2>/dev/null | head
+```
+
+Verify before relying on it: phold uses the HuggingFace transformers model, while
+`--prostt5-model` wants Foldseek's own converted format, so they may not be
+interchangeable. If they are, that is 2.3 GB of the problem gone for free.
+
+**3. Try `cath50` instead of `pdb100`.** It is the *other* label
+`stage3.functional_databases` accepts, so unlike the AFDB labels it can still produce a
+receptor-binding direction — and it is much smaller. Same host, so it may 429 too, but it
+is one command.
+
+**4. Transfer from an IP that is not blocked.** The reliable route, and
+`setup_biomni.sh`'s `RBP_BACKUP` already exists for it — it restores from shared storage
+instead of downloading:
+
+```bash
+# somewhere not rate-limited, from inside the target directory, FLAT prefix
+foldseek databases PDB     pdb100   tmp
+foldseek databases ProstT5 prostt5  tmp
+# then, on the sandbox
+RBP_BACKUP=/shared/rbpfinder bash packaging/biomni/setup_biomni.sh
+```
+
+A prefix containing a directory component breaks Foldseek's own install script and
+scatters the files, so run it from inside the target directory.
+
+If `/shared` is not writable from outside, a **HuggingFace dataset repository** is the
+transfer medium most likely to work: it handles multi-GB files, and a sandbox that managed
+`phold install` can already reach HuggingFace. Upload from the unblocked machine, then
+`huggingface-cli download <repo> --repo-type dataset --local-dir ...` on the sandbox.
+
+**What not to do:** build the database by hand from PDB files. `foldseek createdb` will
+produce one, and it has no taxonomy files, so the search dies at run time with an obscure
+error. `doctor` reports such a database as `CONFIGURED, INVALID` rather than AVAILABLE on
+purpose — an earlier build accepted it and failed mid-run instead.
+
 ## 2a. Verify the deployment, do not assume it
 
 **The skill and the code must be at the same commit.** The skill documents flags; if the

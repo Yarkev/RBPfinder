@@ -1257,6 +1257,52 @@ download this time (656 MB, MD5 passed) — the 403 in item 47's troubleshooting
 intermittent, not permanent. The advice to back the database up to shared storage stands
 for exactly that reason.
 
+### 60. CORRECTION: family T is not corroboration (2026-11-21)
+
+I told the maintainer that a Foldseek CDN block need not delay a large-scale round,
+because T7 gp17 reaches `R2-E3` with or without family T. The arithmetic was right and the
+conclusion was wrong: gp17 is a *well-annotated* CDS, where D and S already carry the
+reading. Generalising from it is the same error as item 43 — reasoning from one case that
+happens not to exercise the thing in question.
+
+Computed on a dark-matter CDS — "hypothetical protein", so no D record, and no homolog
+hit, so no S:
+
+```
+G only              R3-E1   can never enter Primary
+G + functional T    R2-E2   enters
+```
+
+**T is load-bearing exactly where this tool is most needed.** It also gates audit A2,
+which asks which CDS carry structural signal while their positional signal is negative —
+a whole recall-recovery route, not a completeness nicety — and it is what
+`structure_annotation_conflict` reads, so without T a part-name false positive is
+invisible. `WORKFLOW.md` §5.5 said "T rarely lifts a true RBP alone", which is true of an
+annotated CDS and misleading as a general claim; it now carries the dark-matter case
+beside it, and both skill packages say a run without local Foldseek is weakest on the
+genomes that need it most.
+
+Also recorded: only `pdb100` and `cath50` are in `stage3.functional_databases`. The
+AFDB-derived labels are capped at apparatus membership by
+`stage3.apparatus_only_databases`, so substituting one of those adds a family and raises
+`tier_e` without ever producing a receptor-binding direction — it cannot rescue the
+dark-matter case. That narrows the acceptable substitutes to one: `cath50`.
+
+`packaging/biomni/README.md` now has a ranked set of routes for the blocked download,
+starting with a diagnostic that costs nothing: read the download hosts out of the Foldseek
+binary already on the machine, since `foldseek databases` has historically served some
+files from a university host rather than the CDN doing the rate-limiting. Then: check
+whether phold's own ProstT5 weights are already present (phold runs ProstT5 + Foldseek, so
+a working `phold install` fetched them from somewhere unblocked — though the formats may
+differ and that must be verified, not assumed); try `cath50`; and failing those, transfer
+from an unblocked IP, for which `RBP_BACKUP` already exists, with a HuggingFace dataset
+repository as the medium most likely to be reachable from a sandbox that managed `phold
+install`.
+
+And what not to do, stated so it is not rediscovered: do **not** build the database by
+hand. `foldseek createdb` succeeds, the result has no taxonomy files, and the search dies
+at run time. `doctor` reports it `CONFIGURED, INVALID` on purpose — item F4's lesson.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend

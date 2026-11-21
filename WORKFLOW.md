@@ -338,12 +338,25 @@ baselines to check against.
    descriptions, not functional annotations. A structural hit can be excellent and carry
    no functional word, so T rarely lifts a true RBP alone.
 
-15. **The presentation signals' vocabulary is unmeasured.** §4a. Nine assembly-context
-    words and four part names, from one measured case. On the synthetic probe genome the
-    default vocabulary fires **zero** times, which says it is not trivially noisy and
-    nothing more — the real rate needs the labelled strains. `complex` is the term most
-    likely to be pruned. Being inert, a wrong vocabulary here costs attention, not
-    correctness.
+15. **The presentation signals are fitted to one genome, and two terms are fitted to an
+    interpretation of it.** §4a. Of eight assembly-context words, exactly one —
+    `baseplate` — has ever fired on real data. Worse: `tube initiator` and `initiator`
+    were added because a cryo-EM map says gp16 *is* a tube initiator, while the text the
+    matcher actually reads said "Baseplate Complex for Myoviridae Phage XM1". **Their
+    justification does not apply to the surface they match against**, and they have never
+    fired. `tape measure` is siphovirus anatomy and could not have fired on the myovirus
+    that produced the list.
+
+    The vocabulary is also **myovirus tail anatomy from one Salmonella myovirus**. T7
+    fired zero terms, which is uninformative rather than reassuring — a podovirus has no
+    baseplate to name. Nothing has been tested on a siphovirus, so a zero on a
+    non-myovirus means "not applicable", never "clean".
+
+    What bounds the damage is that the layer is **inert and tested inert** (§4a): a wrong
+    vocabulary here costs attention, not correctness. That protection ends the moment
+    anyone promotes a signal to evidence, which is why §5.2's note says nothing yet
+    justifies it. `packaging/comparison/term_noise_floor.py` measures the noise floor
+    against hit titles already on disk, with no new runs.
 
 ### Not implemented, and advertised as such
 

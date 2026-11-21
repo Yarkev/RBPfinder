@@ -1107,6 +1107,65 @@ and often is noise. On a small realistic sample `wedge` and `hub` never appeared
 `baseplate` — if that holds on the real corpus they can go the same way, leaving a
 vocabulary small enough to defend term by term.
 
+### 56. Overfitting audit of the 01F2 round (2026-11-21)
+
+Asked whether the corrections made after one genome are overfitted. They partly are, and
+the risk is not spread evenly — so here is the audit rather than a reassurance.
+
+**Not fitted** — these would stand if 01F2 had never been run:
+
+* item 45, the Mode B defect. A format with no translation column producing a silent zero
+  is a defect of the code, not of a genome. 01F2 only made it visible, and at a cost.
+* item 43, the attribution correction. Its content is a mechanism statement — more
+  families raise `tier_e`, only a direction raises `tier_r` — which follows from the
+  tiering rules and would be true with no genome at all.
+* item 50's `self_product_names_another_part`. It applies a rule the codebase already
+  held ("a compound name takes the conservative reading") to a substring-matching bug that
+  exists independently of any input.
+
+**Fitted, and here is where** — `presentation_signals`' vocabulary:
+
+```
+baseplate           fired on real data, caught gp16            earned
+wedge, hub          baseplate anatomy, plausible, unmeasured   never fired
+tail terminator     "                                          never fired
+assembly chaperone  "                                          never fired
+tape measure        SIPHOVIRUS anatomy; 01F2 is a myovirus,    never fired
+                    so it could not have fired on the genome
+                    that produced this list
+tube initiator      DERIVED FROM A HUMAN INTERPRETATION        never fired
+initiator           OF A STRUCTURE, NOT FROM TEXT THE TOOL
+                    READS -- justification VOID
+```
+
+Those last two are the sharpest instance and worth stating plainly. The cryo-EM map says
+gp16 **is** a tube initiator. The matcher never sees that; it sees PDB titles, and gp16's
+said "Baseplate Complex for Myoviridae Phage XM1". So the words were transcribed from the
+*explanation* of the case rather than from anything in the data, which is overfitting to
+an interpretation — a worse failure than overfitting to a measurement, because no amount
+of the same data can falsify it. They are first to go once `term_noise_floor.py` has run,
+and they are not removed on zero evidence only because the measurement is cheap and
+pending.
+
+**An architecture blind spot nobody had named.** The whole vocabulary is *myovirus* tail
+anatomy, built from one *Salmonella* myovirus. T7 fired zero terms — which is
+**uninformative, not reassuring**: a podovirus has no baseplate to name. Nothing has been
+tested on a siphovirus. A zero on a non-myovirus therefore means "not applicable", never
+"clean", and both skill packages and `WORKFLOW.md` §5 now say so, because an agent reading
+an empty signal block as a clean bill of health is the way this overfitting would actually
+cause harm.
+
+**What bounds the damage.** The layer is inert and *tested* inert (item 48): a wrong
+vocabulary costs attention, not correctness. No threshold moved, no default moved, no tier
+rule changed. That is the whole reason it was acceptable to seed a vocabulary from one
+case at all — and the protection ends the moment a signal is promoted to evidence, which
+is why item 54 says nothing yet justifies that.
+
+Also recorded: the adjacency window of 2 CDS is a guess around a single observation
+(gp23's chaperone at +1), not a measured operon spacing. And the two documents in
+`docs/test-rounds/` are one genome plus one gold standard, which is what the README's
+provenance section is for.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend

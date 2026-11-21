@@ -325,6 +325,14 @@ for a reader and nothing more — they changed no tier.
 So when structural information exists: report the tool's ranking as produced, then state
 where the structure disagrees and which way. Do not re-rank, and do not argue the tier.
 
+**This is one genome.** 4-of-5 is not a measured accuracy and the shapes above are not a
+checklist to match against — one *Salmonella* myovirus is where they were seen, and the
+presentation signals' vocabulary was built from the same genome. Treat them as things
+worth looking for, not as what you should expect to find. If a run's signals fire on
+nothing, that is as likely to mean the vocabulary does not cover this phage's anatomy as
+that the candidates are clean — the terms are myovirus tail anatomy, and T7, a podovirus
+with no baseplate, fires none of them.
+
 ## Known biology that disagrees with the output
 
 When the user's genome contains a literature-established RBP and the run does not rank it
@@ -374,7 +382,9 @@ Preserve these when summarising:
   worth checking", never "the tool thinks this is not an RBP". Its vocabulary is
   `calibration: pending`, so if `term_trigger_counts` shows a term firing on nearly
   every candidate, report that too — it means the hint is noise, not that the genome is
-  unusual.
+  unusual. And **a signal firing on nothing is not a clean bill of health**: the
+  vocabulary is myovirus tail anatomy derived from a single genome, so on a siphovirus or
+  podovirus a zero means "not applicable" rather than "nothing to flag".
 - **`top_unresolved_candidates` is a conditional key.** It appears only when the
   shortlist is empty, or when `completeness` is `limited`, so the top-level key count is
   31 or 32. It is presentation-only: those CDS are **not** promoted to Rescue and are

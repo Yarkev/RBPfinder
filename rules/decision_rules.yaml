@@ -4559,6 +4559,34 @@ presentation_signals:
     # carries `baseplate`, so nothing is lost. This is what `calibration: pending`
     # plus `term_trigger_counts` is for: the word was included because the test
     # round named it, and the data removed it.
+    #
+    # OVERFITTING AUDIT, 2026-11-21. These words came from ONE genome, and the
+    # provenance differs per word. Recorded here so a reader can tell a measured
+    # term from a transcribed one, because the list does not look different from
+    # the outside.
+    #
+    #   baseplate        the only term that has FIRED on real data, and it is
+    #                    the one that caught gp16. Earned its place.
+    #   tube initiator   DERIVED FROM A HUMAN INTERPRETATION, NOT FROM TEXT THE
+    #   initiator        TOOL READS. The cryo-EM map says gp16 IS a tube
+    #                    initiator; its PDB title says "Baseplate Complex for
+    #                    Myoviridae Phage XM1". The matcher only ever sees the
+    #                    title. So the reason these were added does not apply to
+    #                    the surface they match against, and they have never
+    #                    fired. Their justification is VOID, not merely unproven:
+    #                    first to be pruned once term_noise_floor.py has run.
+    #   wedge hub        phage baseplate anatomy from the literature. Plausible,
+    #   tail terminator  unmeasured. `wedge` and `hub` never appeared without
+    #   assembly chaperone  `baseplate` in a small sample, which is the redundancy
+    #                    argument that pruned `complex`.
+    #   tape measure     siphovirus anatomy, and 01F2 is a myovirus -- it could
+    #                    not have fired on the genome that produced this list.
+    #
+    # ARCHITECTURE BLIND SPOT: this vocabulary is myovirus tail anatomy, built
+    # from one Salmonella myovirus. T7 fired zero terms, which is uninformative
+    # rather than reassuring -- T7 is a podovirus and has no baseplate to name.
+    # Nothing here has been tested on a siphovirus. Treat a zero on a non-myovirus
+    # as "not applicable", never as "clean".
     assembly_context_terms:
       - baseplate
       - wedge
@@ -4615,6 +4643,8 @@ presentation_signals:
       - assembly chaperone
       - fiber chaperone
       - fibre chaperone
+    # Also from one genome: gp23's chaperone sits at offset +1. The window of 2
+    # is a guess around that single observation, not a measured operon spacing.
     downstream_window_cds: 2
     note: >
       Measured on 01F2: gp23 (Fiber II) has gp24/gp25 downstream and satisfies

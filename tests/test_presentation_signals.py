@@ -387,6 +387,43 @@ def test_the_output_field_is_named_product_claims(r):
         "product_claims", "but_hits_describe", "reading", "action"}
 
 
+# ================================================== GUARDRAIL 5: overfitting is visible
+
+def test_the_vocabulary_records_which_terms_are_unmeasured():
+    """The list does not look different from the outside, so the provenance has to be
+    written down: one term has fired on real data, two were transcribed from a human
+    interpretation of a structure rather than from text the matcher reads."""
+    yaml_text = (ROOT / "rules" / "decision_rules.yaml").read_text(encoding="utf-8")
+    assert "OVERFITTING AUDIT" in yaml_text
+    assert "DERIVED FROM A HUMAN INTERPRETATION, NOT FROM TEXT THE" in yaml_text
+    assert "ARCHITECTURE BLIND SPOT" in yaml_text
+
+
+def test_both_skills_say_a_zero_is_not_a_clean_bill_of_health():
+    """The way this overfitting would actually cause harm is an agent reading an empty
+    signal block as "nothing to flag" on a phage whose anatomy the vocabulary does not
+    cover."""
+    text = (ROOT / "packaging" / "biomni" / "skill" / "rbpfinder"
+            / "SKILL.md").read_text(encoding="utf-8")
+    assert "not a clean bill of health" in text
+    assert "myovirus" in text
+
+
+def test_the_terms_fitted_to_an_interpretation_are_identified(r):
+    """`tube initiator` and `initiator` were added because a cryo-EM map says gp16 IS a
+    tube initiator. The matcher reads PDB titles, and gp16's said "Baseplate Complex for
+    Myoviridae Phage XM1" -- so the justification does not apply to the surface matched
+    against. They stay only until the noise floor is measured; this test fails if they
+    are removed, which is the prompt to update the audit rather than leave it stale."""
+    terms = r.get(_B + ".structure_annotation_consistency.assembly_context_terms")
+    yaml_text = (ROOT / "rules" / "decision_rules.yaml").read_text(encoding="utf-8")
+    for term in ("tube initiator", "initiator"):
+        if term in terms:
+            assert "justification is VOID" in yaml_text, (
+                "%r is still in the vocabulary, so the audit explaining why must stay"
+                % term)
+
+
 def test_every_check_can_be_switched_off(r):
     cds = [{"cds_id": "G_CDS_0001", "product": "tail fiber protein",
             "strand": "+", "start_nt": 1, "end_nt": 900}]

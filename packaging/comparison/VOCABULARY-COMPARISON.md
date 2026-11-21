@@ -154,6 +154,62 @@ the burden of proof has moved onto `unified`.
 One strain is one strain. But it is the gold-standard strain, and it is also the strain
 this whole line of work started from.
 
+### …and then 01F2 put it back, from the other side
+
+The same mechanism, on the same genome family, pointing the other way. 01F2 gp16 is a
+**false positive confirmed by cryo-EM** — annotated "tail fiber protein", actually a tube
+initiator — and it is in Primary. Computed on its measured family set:
+
+```
+                 D direction          families     tier
+current          receptor_binding     D,G,S,T      R2-E3   in Primary
+explicit_guard   receptor_binding     D,G,S,T      R2-E3   in Primary
+unified          apparatus            D,G,S,T      R3-E3   OUT
+```
+
+So `unified` **removes the false positive**, by exactly the mechanism that removed the
+true positive on T7. That is not a contradiction; it is the shape of a precision/recall
+trade, and it means `unified` is not "wrong" — it is a different operating point.
+
+### The question this actually raises
+
+gp17 and gp16 are **indistinguishable to the direction vocabulary**. Both are "tail fiber
+protein"; both have part-name S homologs; the vocabulary cannot help but treat them the
+same, which is why `unified` moves both and `current` moves neither.
+
+They are *not* indistinguishable to the presentation signals:
+
+```
+                       structure_annotation_conflict   chaperone downstream
+gp17  T7, true RBP     no                              (not measured)
+gp16  01F2, false pos  YES  ("Baseplate Complex ...")  no
+gp23  01F2, true RBP   no                              yes  (+1, same strand)
+```
+
+gp17's structure hit is "N-terminal of mature bacteriophage T7 tail fiber protein gp17" —
+a part name, carrying no assembly word — so it does not fire. gp16's is "Baseplate Complex
+for Myoviridae Phage XM1", and it does.
+
+**The conflict signal predicts which of the two `unified` should demote.** It separates
+them on information the direction vocabulary structurally cannot see, because a direction
+is assigned per record from the product name while this reads the hit description.
+
+So the sharper experiment is no longer only "which arm wins". It is:
+
+> **Across the labelled set, does `structure_annotation_conflict` separate true from
+> false part-name candidates?**
+
+If it does, the answer to the vocabulary question is probably *neither arm*: keep
+`current`, and the thing worth considering is whether this signal should ever graduate from
+presentation to evidence — which would do what `unified` does, selectively, instead of to
+every part name at once. That would be a far larger change than a default flip and needs
+its own benchmark; nothing here justifies it yet. But it is the hypothesis the next round
+should test, because it is cheap to test and it is the one that could make the
+precision/recall trade unnecessary rather than merely choosing a side.
+
+Two cases are two cases. The claim here is only that the experiment has a better shape
+than it did.
+
 So the decisive question for the benchmark is not "did anything change" but:
 
 > **Do the reference RBPs keep their tier and their place in Primary?**

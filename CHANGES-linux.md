@@ -1053,6 +1053,60 @@ indistinguishable from an oversight.
 A second test adds a stray file and asserts the check catches it. A gate that passes
 everything is worse than no gate — the same reason the skill-package gate has one.
 
+### 54. `unified` removes the false positive too, which reshapes the experiment (2026-11-21)
+
+Computed, not run: on 01F2 gp16's measured family set — the cryo-EM-confirmed false
+positive, annotated "tail fiber protein", actually a tube initiator — `unified` gives
+`R3-E3` where `current` and `explicit_guard` give `R2-E3`. It **leaves Primary**.
+
+So `unified` removes a false positive by exactly the mechanism that removed a true
+positive on T7. Item 44 read as "`unified` is wrong on the gold standard"; with both cases
+in hand it reads as a **precision/recall trade**, and `unified` is a different operating
+point rather than a mistake. That is a materially different conclusion from the same
+mechanism, and it would have been missed by testing only the recall side.
+
+The more useful finding is what separates the two cases. gp17 and gp16 are
+**indistinguishable to the direction vocabulary** — both "tail fiber protein", both with
+part-name S homologs — which is why `unified` moves both and `current` moves neither. But:
+
+```
+                     structure_annotation_conflict           chaperone downstream
+gp17  T7 true RBP    no   ("N-terminal of mature ... gp17")  --
+gp16  01F2 false pos YES  ("Baseplate Complex for ... XM1")  no
+gp23  01F2 true RBP  no                                      yes (+1, same strand)
+```
+
+**The presentation signal predicts which of the two `unified` should demote**, on
+information a direction cannot carry: a direction is assigned from the product name, while
+this reads the hit description. The signals built in item 48 to explain a false positive
+turn out to separate a case the vocabulary structurally cannot.
+
+`packaging/comparison/VOCABULARY-COMPARISON.md` now states the sharper experiment: across
+the labelled set, does `structure_annotation_conflict` separate true from false part-name
+candidates? If it does, the vocabulary answer is probably *neither arm* — keep `current` —
+and the open question becomes whether this signal should ever graduate from presentation to
+evidence, doing selectively what `unified` does indiscriminately. **Nothing here justifies
+that**; it is a far larger change than a default flip and would need its own benchmark.
+Two cases are two cases. The claim is only that the experiment now has a better shape.
+
+### 55. The signal vocabulary can be calibrated without running any genomes (2026-11-21)
+
+Seven of the eight assembly-context words have never fired on real data. The instinct is
+to run more strains; that is the wrong instrument. Whether a word is noise depends on **how
+common it is in structure hit titles**, not on which phage produced them — a word in a
+large fraction of PDB titles fires on nearly every candidate regardless.
+
+Every run already wrote `stage3_local/<cds>.foldseek.json` with its hit titles, so the
+measurement costs no CPU and no new strains. `packaging/comparison/term_noise_floor.py`
+counts, per term: titles containing it, CDS affected, how often it appears **alone**, and
+which other vocabulary terms co-occur.
+
+That last column is the one that matters, because it is the argument that pruned `complex`:
+a term which never appears without a stronger one is redundant, and a term that fires alone
+and often is noise. On a small realistic sample `wedge` and `hub` never appeared without
+`baseplate` — if that holds on the real corpus they can go the same way, leaving a
+vocabulary small enough to defend term by term.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend

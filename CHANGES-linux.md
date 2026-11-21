@@ -992,6 +992,67 @@ assume, and compare `versions.package` in `run_result.json` against the commit i
 is what needs the check. Item 39's version recording is what makes the second check
 possible at all.
 
+### 52. The test-round reports are in the repository (2026-11-21)
+
+`docs/test-rounds/` now holds the two Biomni reports, **verbatim** — their dates, their
+stated commit and their rough edges unchanged, because a corrected evidence document is
+no longer evidence. Checksums match the uploads. The provenance, the staleness and what
+each predates are in a sibling README rather than edited into the files.
+
+Linked from `WORKFLOW.md` §5 and the handoff's reading order, so the evidence sits next
+to the claims it supports instead of being two orphan files.
+
+The README also carries the **regression baselines** from the handoff's §4, which is the
+actionable part of those documents: T7 full-stack `Primary = {CDS_0039, CDS_0040,
+CDS_0052}`; 01F2 full-stack `Primary = {CDS_0010, CDS_0011, CDS_0012, CDS_0019}`,
+`Rescue = {CDS_0026}` in pharokka numbering, with the prokka mapping; and the architecture
+calls.
+
+One of those baselines is worth reading twice. **T7 types as `E_jumbo_or_unresolved`,
+which is wrong — T7 is a podovirus — and its Primary set is correct anyway.** That is
+`architecture_is_soft_prior` demonstrated rather than asserted: the typing reaches
+`k_default` and the priority loci and nothing else, so a wrong type cannot exclude a
+candidate, and the `low` confidence is the typing reporting its own failure instead of
+hiding it. It is the cleanest confirmation of that invariant the project has.
+
+Two documents were offered and one was declined: an uploaded `WORKFLOW.md` turned out to
+be byte-identical to this repository's own copy at `be5aaed`, two commits stale — missing
+§4a, §5 item 15 and the version-based header. Committing it would have been a silent
+regression dressed as a contribution, so it was checked against the git history before
+anything was written. The second upload of the test report was byte-identical to the
+first.
+
+### 53. The bundle builder's docstring claimed a check it did not have (2026-11-21)
+
+Noticed while confirming that `docs/test-rounds/` would not ship. The module docstring
+said *"a file that is neither included nor forbidden is a new file nobody classified, so
+the build stops and asks rather than guessing"*. It did not stop; `TREES`/`FILES` is an
+allowlist, so an unlisted file is silently skipped.
+
+That is my own overclaim, and the same shape as the `stage3_local` taxonomy comment in
+item F4: a comment asserting a behaviour nobody had verified. The difference is what to
+do about it. Here the claimed behaviour was worth having, so it was **implemented** rather
+than the sentence softened.
+
+`unclassified_packaging_paths()` reports anything under `packaging/` that is in neither
+the allowlist nor the new `NOT_SHIPPED` map, and the build stops until it is classified.
+The allowlist stays the thing that decides what ships — that direction is fail-safe, since
+an unlisted file not shipping is better than one shipping by accident. This catches the
+opposite failure: a new `packaging/` subtree that never reaches a user while no build
+output mentions it.
+
+Writing the `NOT_SHIPPED` reasons settled three boundaries that were previously just
+absences: `packaging/comparison` (maintainer tooling — a user installs the analysis, not
+the instrument used to decide what the analysis should do), `packaging/biomni/README.md`
+and `packaging/biomni/setup_biomni.sh` (the Biomni route installs from a git checkout and
+downloads multi-GB databases; shipping its setup script inside a bundle that
+`install_linux.sh` already installs would offer two installers for one machine). A test
+requires each entry to carry a reason, because a path excluded without one is
+indistinguishable from an oversight.
+
+A second test adds a stray file and asserts the check catches it. A gate that passes
+everything is worse than no gate — the same reason the skill-package gate has one.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend

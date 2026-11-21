@@ -294,7 +294,9 @@ nothing — in which case the run reports honestly what it could not do.
 
 ## 5. Where a wrong answer can come from
 
-This is the section to argue with.
+This is the section to argue with. The evidence for several of these — and the round that
+falsified §2's earlier claim — is archived in `docs/test-rounds/`, with the regression
+baselines to check against.
 
 ### Live, and known
 

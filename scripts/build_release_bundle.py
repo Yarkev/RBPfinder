@@ -31,8 +31,15 @@ remembering: milestone logs, handoff and memory documents, preregistrations, cur
 benchmark data and spreadsheets. `packaging/comparison/` is excluded too -- the comparison
 harness is a maintainer tool, not something a user installs.
 
-A file that is neither included nor forbidden is a *new* file nobody classified, so the
-build stops and asks rather than guessing. Add it to one list or the other.
+`TREES`/`FILES` is an allowlist, which is the fail-safe direction: a file nobody listed
+does not ship, rather than shipping by accident. But silence in that direction has its own
+cost -- a new `packaging/` subtree would simply never reach users and nothing would say so
+-- so `unclassified_packaging_paths()` reports anything under `packaging/` that is in
+neither the allowlist nor `NOT_SHIPPED`, and the build stops until it is classified.
+
+(This paragraph previously claimed the build already stopped on an unclassified file. It
+did not; the claim was mine and wrong, so the check was implemented rather than the
+sentence softened.)
 """
 import argparse
 import hashlib
@@ -71,6 +78,21 @@ FORBIDDEN_PREFIXES = ("MILESTONE_",)
 FORBIDDEN_SUFFIXES = ("_PREREGISTRATION.md", ".xlsx")
 FORBIDDEN_DIRS = {"benchmark", "comparison", "__pycache__", ".pytest_cache"}
 
+# Under `packaging/` but deliberately not in the bundle, with the reason. Anything here
+# that is in neither this map nor the allowlist stops the build, so a new subtree cannot
+# silently fail to reach users.
+NOT_SHIPPED = {
+    "packaging/comparison": "maintainer tooling: the arm-comparison harness and its plan. "
+                            "A user installs the analysis, not the instrument used to "
+                            "decide what the analysis should do",
+    "packaging/biomni/README.md": "the Biomni route installs from a git checkout via "
+                                  "setup_biomni.sh, not from this bundle",
+    "packaging/biomni/setup_biomni.sh": "same: it clones and builds on the server, and "
+                                        "downloads multi-GB databases. Shipping it inside "
+                                        "a bundle installed by install_linux.sh would "
+                                        "offer two installers for one machine",
+}
+
 
 def say(msg):
     print("  %s" % msg, flush=True)
@@ -92,6 +114,30 @@ def forbidden(rel):
     if name.endswith(FORBIDDEN_SUFFIXES):
         return "matches a forbidden suffix"
     return None
+
+
+def unclassified_packaging_paths():
+    """Paths under `packaging/` that are in neither the allowlist nor `NOT_SHIPPED`.
+
+    The allowlist decides what ships, which is the right default. This catches the other
+    failure: someone adds `packaging/newthing/`, it never reaches a user, and no build
+    output mentions it.
+    """
+    shipped = {src for src, _dst in TREES} | {src for src, _dst in FILES}
+    known = shipped | set(NOT_SHIPPED)
+
+    def classified(rel):
+        return any(rel == k or rel.startswith(k + "/") for k in known)
+
+    out = []
+    for path in sorted((ROOT / "packaging").rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(ROOT).as_posix()
+        if forbidden(rel) or classified(rel):
+            continue
+        out.append(rel)
+    return out
 
 
 def build_wheel(out_dir):
@@ -321,6 +367,15 @@ def main(argv=None):
     if staging.exists():
         shutil.rmtree(staging)
     staging.mkdir(parents=True)
+
+    stray = unclassified_packaging_paths()
+    if stray:
+        fail("these files under packaging/ are in neither the allowlist nor "
+             "NOT_SHIPPED, so nobody has decided whether they reach users:\n    "
+             + "\n    ".join(stray)
+             + "\n  Add each to TREES/FILES to ship it, or to NOT_SHIPPED with the "
+               "reason it stays behind.")
+    say("every packaging/ path is classified")
 
     wheel = build_wheel(staging)
     version = version_from_wheel(wheel)

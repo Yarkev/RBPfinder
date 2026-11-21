@@ -242,7 +242,12 @@ caught every one of the above. Keep it for anything touching an external tool co
    failure modes it prevents.
 3. `CHANGES-linux.md` — every change with its evidence, including the three defects
    introduced and then corrected during this work.
-4. `packaging/skill/rbpfinder/references/KNOWN_ISSUES.md` — §10 (local Foldseek, validated)
-   and §11 (why T7 gp17 reads R3/apparatus). Chinese; see §5.
-5. `rules/decision_rules.yaml` — the judgment itself. Nothing in `rbpfinder/*.py`
+4. `WORKFLOW.md` — the end-to-end pipeline read from the code, and §5, which lists every
+   place a wrong answer can come from.
+5. `docs/test-rounds/` — the reports from the Biomni rounds, archived verbatim, with the
+   regression baselines and the provenance of each. Read its README first: item 43 of
+   the changelog, which corrects an attribution, exists because of these.
+6. `packaging/skill/rbpfinder/references/KNOWN_ISSUES.md` — §10 (local Foldseek, validated)
+   and §11 (why T7 gp17 reads R3/apparatus, corrected 2026-11-21). Chinese; see §5.
+7. `rules/decision_rules.yaml` — the judgment itself. Nothing in `rbpfinder/*.py`
    hardcodes a threshold.

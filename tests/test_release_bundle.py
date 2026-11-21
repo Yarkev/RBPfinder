@@ -107,6 +107,34 @@ def test_the_readme_placeholders_are_the_ones_the_builder_substitutes():
     assert found <= {"{{VERSION}}", "{{WHEEL}}"}, found
 
 
+def test_every_packaging_path_is_classified(builder):
+    """The allowlist decides what ships, which is the right default. This catches the
+    other failure: someone adds `packaging/newthing/`, it never reaches a user, and no
+    build output mentions it. The module docstring used to CLAIM this check existed when
+    it did not, so the claim was implemented rather than softened."""
+    assert builder.unclassified_packaging_paths() == []
+
+
+def test_the_check_catches_a_stray_path(builder, tmp_path, monkeypatch):
+    """A gate that passes everything is worse than no gate."""
+    stray = builder.ROOT / "packaging" / "_stray_test_only"
+    stray.mkdir()
+    try:
+        (stray / "f.md").write_text("x", encoding="utf-8")
+        found = builder.unclassified_packaging_paths()
+        assert "packaging/_stray_test_only/f.md" in found
+    finally:
+        import shutil
+        shutil.rmtree(stray)
+
+
+def test_not_shipped_entries_carry_a_reason(builder):
+    """A path excluded without a stated reason is indistinguishable from an oversight."""
+    assert builder.NOT_SHIPPED
+    for path, reason in builder.NOT_SHIPPED.items():
+        assert len(reason) > 40, path
+
+
 # ------------------------------------------------------- the Biomni skill package gate
 
 BIOMNI_SKILL = ROOT / "packaging" / "biomni" / "skill" / "rbpfinder"

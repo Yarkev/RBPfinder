@@ -138,7 +138,7 @@ dependency is cleared.
 | | |
 |---|---|
 | ~~Configure DB_PHAGE~~ | **done** — §4 has the measured outcome |
-| ~~Redeploy the skill package~~ | **done** — `check_skill` passed; redeploy again after this commit, which touches SKILL.md |
+| Redeploy the skill package | copying the files and passing `check_skill` is **not** registration — the platform needs its own create flow, ending in a user confirmation. See `packaging/biomni/README.md` §2 |
 | Run the remaining 42 strains | optional; only no-regression + false-complete are checkable |
 | Platform skill registration | awaiting approval in the UI; affects index visibility only, the files and the gate are in place |
 

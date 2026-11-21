@@ -71,9 +71,26 @@ python3 /mnt/skills/system/phylo-create-skill/scripts/check_skill.py \
         /mnt/results/skills/rbpfinder/
 ```
 
-The frontmatter carries the `id` the platform already registered, so deploying over the
-existing directory **updates in place**. Changing the id would register a second skill
-under the same name; if you ever do want a new id, delete the old directory first.
+### Copying the files is NOT registration
+
+This was wrong here until 2026-11-21, and a real deployment hit it: the files were in
+place, `check_skill.py` passed, and **the skill did not appear in the skills list**. The
+two commands above do exactly two things, and neither is registration:
+
+* the `cp`s put the package where the platform expects to find it;
+* `check_skill.py` validates the package's structure and its internal consistency.
+
+Registration is a **separate platform flow**: the agent generates a preview card and
+**you confirm the save**. Ask for it in as many words — *"now register this skill on the
+platform"* — and confirm when the card appears. Until you do, the package is a correctly
+shaped directory that nothing has been told about.
+
+**The `id` in the frontmatter is not what registers it.** An earlier version of this file
+claimed the frontmatter `id` meant deploying over the existing directory updates in place.
+It does not: the platform assigns its **own** id on save, so the id carried in the file is
+whichever environment the package last came from. It is informational. Do not reason about
+re-registration from it, and do not expect a redeploy of the files alone to update a
+registered skill.
 
 `skill/rbpfinder/` is the version-controlled source of truth; the copy under
 `/mnt/results/` is a deployment. Keep edits in the repo and redeploy, so the registered

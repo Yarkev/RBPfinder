@@ -1218,6 +1218,45 @@ genome cannot show that its class is being handled worse than another.
 answer, and it needs no new strain selection, only that the morphologies be recorded
 alongside the results.
 
+### 59. Two defects in my own deployment path, found by deploying it (2026-11-21)
+
+A real install from the merged `main` found both, and both were mine.
+
+**`setup_biomni.sh` did a non-editable install** — `pip install "$REPO"` — walking straight
+into the trap §2a of its own README warns about. Worse, the reuse guard only asked whether
+the executable existed, so after a `git checkout` it printed *"already installed —
+reusing"* and the new code was **never installed, silently**. That is the stale-code
+failure mode built into the script that is supposed to prevent it, and item 51 had already
+recorded it happening to a test round.
+
+Now `-e`, and the guard asks **where the import resolves to** rather than whether a file
+exists — the same question §2a asks a human, asked by the script about itself. Three
+outcomes, each named in the output: reusing an editable install from the checkout,
+reinstalling because the import came from somewhere else (with the shadowing explained), or
+reinstalling because nothing was importable. Exercised both ways before committing.
+
+**README §2 documented a deployment that does not register anything.** The `cp`s put files
+where the platform looks; `check_skill.py` validates structure. **Neither registers the
+skill**, so the deployment ended with the files correct, the gate passing, and nothing in
+the skills list. Registration is a separate platform flow — the agent generates a preview
+card and the user confirms the save — and §2 now says so, in the words to ask for.
+
+And the sentence next to it was simply false. It claimed the frontmatter `id` meant
+"deploying over the existing directory updates in place", and that changing the id would
+register a duplicate. The platform assigns its **own** id on save; the id in the file is
+whichever environment the package last came from, and is informational. I wrote that claim
+from a prior session's description without verifying it, which is the same error as item
+43's attribution and item 53's docstring: **asserting a mechanism I had not checked.** The
+pattern is specific enough to name — it happens when a plausible explanation arrives from
+somewhere trustworthy and I pass it on as established.
+
+Also confirmed from the same round, worth recording as environment facts rather than
+defects: the Foldseek CDN returns **429** (`error code: 1027`) to data-centre IPs with no
+mirror, so `pdb100`/ProstT5 need a retry loop; and Zenodo did **not** block the PHROGs
+download this time (656 MB, MD5 passed) — the 403 in item 47's troubleshooting is
+intermittent, not permanent. The advice to back the database up to shared storage stands
+for exactly that reason.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend

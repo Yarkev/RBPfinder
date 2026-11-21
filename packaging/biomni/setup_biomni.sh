@@ -30,13 +30,44 @@ say() { printf '==> %s\n' "$1"; }
 mkdir -p "$BIN_DIR" "$FS_DIR"
 
 # --- 1. rbpfinder in its own venv -------------------------------------------------
-if [ ! -x "$VENV/bin/rbpfinder" ]; then
-    say "installing rbpfinder into $VENV"
-    python3 -m venv "$VENV"
-    "$VENV/bin/pip" install --quiet --upgrade pip
-    "$VENV/bin/pip" install --quiet "$REPO"
+# EDITABLE on purpose. This script used to do a plain `pip install "$REPO"`, which walked
+# straight into the trap README section 2a warns about: a non-editable copy shadows the
+# checkout, so `import rbpfinder` resolves to the copy and a later `git checkout` changes
+# nothing that runs. A real test round was verified against stale code that way.
+#
+# The old reuse guard made it worse. It only asked whether the executable existed, so
+# after a `git checkout` it printed "already installed -- reusing" and the new code was
+# never installed -- silently. The guard now checks WHERE the import resolves to, which
+# is the same question section 2a asks a human, asked by the script about itself.
+if [ -x "$VENV/bin/rbpfinder" ]; then
+    resolved="$("$VENV/bin/python" - <<'EOF' 2>/dev/null || true
+import inspect
+try:
+    import rbpfinder
+    print(inspect.getsourcefile(rbpfinder) or "")
+except Exception:
+    print("")
+EOF
+)"
+    case "$resolved" in
+        "$REPO"/*) say "rbpfinder already installed editable from $REPO -- reusing"
+                   needs_install=0 ;;
+        "")        say "rbpfinder present but not importable -- reinstalling"
+                   needs_install=1 ;;
+        *)         say "rbpfinder imports from $resolved, NOT from $REPO -- reinstalling"
+                   say "  (a non-editable copy shadows the checkout; see README 2a)"
+                   needs_install=1 ;;
+    esac
 else
-    say "rbpfinder already installed in $VENV -- reusing"
+    needs_install=1
+fi
+
+if [ "$needs_install" = "1" ]; then
+    say "installing rbpfinder (editable) into $VENV"
+    [ -d "$VENV" ] || python3 -m venv "$VENV"
+    "$VENV/bin/pip" install --quiet --upgrade pip
+    "$VENV/bin/pip" install --quiet --force-reinstall --no-deps -e "$REPO"
+    "$VENV/bin/pip" install --quiet -e "$REPO"
 fi
 
 # --- 2. foldseek static binary ----------------------------------------------------

@@ -1166,6 +1166,58 @@ Also recorded: the adjacency window of 2 CDS is a guess around a single observat
 `docs/test-rounds/` are one genome plus one gold standard, which is what the README's
 provenance section is for.
 
+## v1.2.5+linux — closing the round
+
+### 57. Overfitting handled: two terms removed, five left falsifiable (2026-11-21)
+
+Item 56 located the overfitting. This acts on it, and the treatment differs by **why** a
+term was weak, because "unmeasured" and "no hypothesis at all" are different defects:
+
+**Removed, on provenance rather than on counts** — `tube initiator`, `initiator`. The
+cryo-EM map says gp16 *is* a tube initiator; the PDB title the matcher reads said
+"Baseplate Complex for Myoviridae Phage XM1". These were transcribed from the human
+*explanation* of the case, so there was nothing a larger run could falsify. Removal, not
+measurement, is the remedy for that. The case is still caught — `baseplate` alone does
+it, which a test now pins — so removal cost nothing. (`initiator` bare is also a generic
+word that replication-initiator proteins carry, though the product-name gate bounds how
+often that could matter.)
+
+**Kept, deliberately** — `baseplate` (earned), plus `wedge`, `hub`, `tail terminator`,
+`assembly chaperone`, `tape measure`. These are literature anatomy: unmeasured but
+**falsifiable**, which is exactly what the two removed terms could not offer. Pruning them
+now on zero data would discard a testable hypothesis; leaving them without an instrument
+would make `calibration: pending` a status nobody could ever discharge.
+
+So the instrument is now part of the normal path. `term_noise_floor.py --aggregate` rolls
+up the `term_trigger_counts` every run already writes, so a large-scale application round
+produces the calibration as a **by-product** — no extra step, no extra CPU. A term silent
+across many genomes removes itself; a term firing on nearly all of them removes itself the
+other way. Neither verdict needs a decision from anyone. Both skill packages now tell the
+agent to report that rollup as a vocabulary finding.
+
+Two tests failed on the removal, asserting the removed words were present — true when
+written. Updated rather than the code, and one of them is now stronger: it asserts the
+false positive is caught by `baseplate` **alone**, which is the evidence that the removal
+was free.
+
+### 58. The siphovirus gap, recorded as what it is (2026-11-21)
+
+`A_sipho_gpJ` exists in the rules with its own markers, `k_default` and priority loci
+(`gpJ central fibre`), and **nothing in this repository records it being exercised end to
+end** — on the most common tailed-phage morphology. The maintainer reports siphoviruses in
+the training set, so this is a gap in the *record* rather than certainly in the coverage,
+and a large-scale round closes it without a purpose-built run.
+
+Worth separating what is and is not at risk. A wrong architecture call is not: typing is a
+soft prior, and T7 types as `E_jumbo_or_unresolved` — wrong, it is a podovirus — while its
+Primary set stays correct. What is at risk is **recall being systematically low across a
+whole morphology with nothing in any single run to reveal it**, because a run on one
+genome cannot show that its class is being handled worse than another.
+
+`WORKFLOW.md` §5 item 16 carries it. It is the clearest open question the scale round can
+answer, and it needs no new strain selection, only that the morphologies be recorded
+alongside the results.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend

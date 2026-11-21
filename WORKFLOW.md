@@ -2,7 +2,7 @@
 
 Read from the code, not from SKILL.md. Where the two disagree, §5 says so.
 
-Current as of **`v1.2.4+linux`**. Revised 2026-11-21 against a Biomni test round, which
+Current as of **`v1.2.5+linux`**. Revised 2026-11-21 against a Biomni test round, which
 corrected an attribution in §2 that was mine and wrong — the correction is quoted in
 place rather than edited away.
 
@@ -230,7 +230,7 @@ run_flags             e.g. REMOTE_SUBMISSION_BLOCKED, STRUCTURAL_SCREEN_UNAVAILA
 ```
 
 `top_unresolved_candidates` is present only when the shortlist is empty or
-`completeness` is `limited`, so the key count is **32 or 33** at `v1.2.4+linux` — not a
+`completeness` is `limited`, so the key count is **32 or 33** at `v1.2.5+linux` — not a
 fixed number, and not a number worth quoting: this document has stated it wrong three
 times (29, then 31, then 31-or-32, each true of a different commit). Count it from a run
 if you need it. It is presentation-only: those CDS are not promoted to Rescue and are not counted
@@ -338,25 +338,39 @@ baselines to check against.
    descriptions, not functional annotations. A structural hit can be excellent and carry
    no functional word, so T rarely lifts a true RBP alone.
 
-15. **The presentation signals are fitted to one genome, and two terms are fitted to an
-    interpretation of it.** §4a. Of eight assembly-context words, exactly one —
-    `baseplate` — has ever fired on real data. Worse: `tube initiator` and `initiator`
-    were added because a cryo-EM map says gp16 *is* a tube initiator, while the text the
-    matcher actually reads said "Baseplate Complex for Myoviridae Phage XM1". **Their
-    justification does not apply to the surface they match against**, and they have never
-    fired. `tape measure` is siphovirus anatomy and could not have fired on the myovirus
-    that produced the list.
+15. **The presentation signals are fitted to one genome.** §4a. Of the six
+    assembly-context words, exactly one — `baseplate` — has fired on real data. The other
+    five are literature anatomy: plausible, unmeasured, and **falsifiable**, which is why
+    they are kept rather than guessed about. `tape measure` is siphovirus anatomy and
+    could not have fired on the myovirus that produced the list.
 
-    The vocabulary is also **myovirus tail anatomy from one Salmonella myovirus**. T7
-    fired zero terms, which is uninformative rather than reassuring — a podovirus has no
-    baseplate to name. Nothing has been tested on a siphovirus, so a zero on a
-    non-myovirus means "not applicable", never "clean".
+    Two words were **removed** on provenance rather than on counts. `tube initiator` and
+    `initiator` were added because a cryo-EM map says gp16 *is* a tube initiator — while
+    the text the matcher reads said "Baseplate Complex for Myoviridae Phage XM1". They
+    were transcribed from the human *explanation* of the case, so no amount of the same
+    data could have falsified them. Being unmeasured and having no hypothesis at all are
+    different defects, and they take different remedies.
+
+    The vocabulary is **myovirus tail anatomy from one Salmonella myovirus**. T7 fired
+    zero terms, which is uninformative rather than reassuring — a podovirus has no
+    baseplate to name. A zero on a non-myovirus means "not applicable", never "clean",
+    and both skills say so.
 
     What bounds the damage is that the layer is **inert and tested inert** (§4a): a wrong
-    vocabulary here costs attention, not correctness. That protection ends the moment
-    anyone promotes a signal to evidence, which is why §5.2's note says nothing yet
-    justifies it. `packaging/comparison/term_noise_floor.py` measures the noise floor
-    against hit titles already on disk, with no new runs.
+    vocabulary costs attention, not correctness. That protection ends the moment anyone
+    promotes a signal to evidence, which is why §5.2 says nothing yet justifies it.
+    `term_noise_floor.py --aggregate` rolls up the counts every run already records, so a
+    large round discharges `calibration: pending` as a by-product — a term silent across
+    many genomes, or firing on nearly all of them, removes itself either way.
+
+16. **No siphovirus round is on record here.** `A_sipho_gpJ` exists in the rules with its
+    own `k_default`, markers and priority loci (`gpJ central fibre`), and nothing in this
+    repository records it being exercised end to end — on the most common tailed-phage
+    morphology. The maintainer reports siphoviruses in the training set, so this is a gap
+    in the *record* rather than certainly in the coverage, and a large-scale round closes
+    it. The risk it leaves open is not a wrong architecture call — typing is a soft prior,
+    and T7 types wrongly while its Primary set stays correct — but **recall being
+    systematically low across a whole morphology with nothing to reveal it**.
 
 ### Not implemented, and advertised as such
 

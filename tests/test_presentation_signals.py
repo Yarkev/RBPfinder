@@ -181,7 +181,10 @@ def test_the_measured_false_positive_shape_is_flagged(r):
     sig = ps.build(cands, records, cds, r)["signals"]["X_CDS_0016"]
     hit = sig["structure_annotation_conflict"]
     assert hit["product_claims"] == ["tail fiber"]
-    assert {f["term"] for f in hit["but_hits_describe"]} >= {"baseplate", "initiator"}
+    # `baseplate` alone is what catches it. `initiator` was in the vocabulary and was
+    # removed: gp16's PDB title never contained the word, only the cryo-EM reading of it
+    # did. The case is still caught, which is why removal cost nothing.
+    assert {f["term"] for f in hit["but_hits_describe"]} == {"baseplate"}
     assert "no tier was changed" in hit["action"]
 
 
@@ -395,7 +398,7 @@ def test_the_vocabulary_records_which_terms_are_unmeasured():
     interpretation of a structure rather than from text the matcher reads."""
     yaml_text = (ROOT / "rules" / "decision_rules.yaml").read_text(encoding="utf-8")
     assert "OVERFITTING AUDIT" in yaml_text
-    assert "DERIVED FROM A HUMAN INTERPRETATION, NOT FROM TEXT THE" in yaml_text
+    assert "transcribed from the human EXPLANATION of the case" in yaml_text
     assert "ARCHITECTURE BLIND SPOT" in yaml_text
 
 
@@ -409,19 +412,40 @@ def test_both_skills_say_a_zero_is_not_a_clean_bill_of_health():
     assert "myovirus" in text
 
 
-def test_the_terms_fitted_to_an_interpretation_are_identified(r):
+def test_the_terms_fitted_to_an_interpretation_are_gone(r):
     """`tube initiator` and `initiator` were added because a cryo-EM map says gp16 IS a
-    tube initiator. The matcher reads PDB titles, and gp16's said "Baseplate Complex for
-    Myoviridae Phage XM1" -- so the justification does not apply to the surface matched
-    against. They stay only until the noise floor is measured; this test fails if they
-    are removed, which is the prompt to update the audit rather than leave it stale."""
+    tube initiator. The matcher reads PDB TITLES, and gp16's said "Baseplate Complex for
+    Myoviridae Phage XM1" -- so the words were transcribed from the human explanation of
+    the case, not from anything in the data. There was no hypothesis for a larger run to
+    test, so the remedy was removal rather than measurement."""
     terms = r.get(_B + ".structure_annotation_consistency.assembly_context_terms")
+    assert "tube initiator" not in terms
+    assert "initiator" not in terms
     yaml_text = (ROOT / "rules" / "decision_rules.yaml").read_text(encoding="utf-8")
-    for term in ("tube initiator", "initiator"):
-        if term in terms:
-            assert "justification is VOID" in yaml_text, (
-                "%r is still in the vocabulary, so the audit explaining why must stay"
-                % term)
+    assert "REMOVED 2026-11-21, on provenance rather than on counts" in yaml_text
+
+
+def test_the_surviving_unmeasured_terms_are_hypotheses_not_transcriptions(r):
+    """The five kept terms are literature anatomy: a larger run can falsify them, which
+    is exactly what the two removed ones could not offer. They are kept so that the
+    scale round measures them rather than so that nobody has to decide."""
+    terms = set(r.get(_B + ".structure_annotation_consistency.assembly_context_terms"))
+    assert terms == {"baseplate", "wedge", "tail terminator", "assembly chaperone",
+                     "hub", "tape measure"}
+    yaml_text = (ROOT / "rules" / "decision_rules.yaml").read_text(encoding="utf-8")
+    assert "a HYPOTHESIS, which is the difference" in yaml_text
+
+
+def test_a_sweep_can_calibrate_the_vocabulary_from_run_output_alone():
+    """`--aggregate` rolls up the counts every run already records, so a large round
+    produces the calibration as a by-product. Without it, `calibration: pending` would be
+    a status nobody could ever discharge."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "tnf", ROOT / "packaging" / "comparison" / "term_noise_floor.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert hasattr(mod, "aggregate_runs") and hasattr(mod, "report_aggregate")
 
 
 def test_every_check_can_be_switched_off(r):

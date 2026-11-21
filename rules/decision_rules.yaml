@@ -13,7 +13,7 @@ meta:
   # read "1.2.1-linux" while the package read "1.2.1+linux" -- close enough to look
   # right in a diff, different enough that `pip show` and a run's own citation disagreed,
   # and "-linux" is not even a valid PEP 440 local version.
-  version: "1.2.4+linux"
+  version: "1.2.5+linux"
   scope: "Caudoviricetes"
   optimises: "complete-recall@K"
   provenance: "reverse-engineered from SMA phage work (SOP_v0.md); not yet calibrated"
@@ -4567,20 +4567,31 @@ presentation_signals:
     #
     #   baseplate        the only term that has FIRED on real data, and it is
     #                    the one that caught gp16. Earned its place.
-    #   tube initiator   DERIVED FROM A HUMAN INTERPRETATION, NOT FROM TEXT THE
-    #   initiator        TOOL READS. The cryo-EM map says gp16 IS a tube
-    #                    initiator; its PDB title says "Baseplate Complex for
-    #                    Myoviridae Phage XM1". The matcher only ever sees the
-    #                    title. So the reason these were added does not apply to
-    #                    the surface they match against, and they have never
-    #                    fired. Their justification is VOID, not merely unproven:
-    #                    first to be pruned once term_noise_floor.py has run.
     #   wedge hub        phage baseplate anatomy from the literature. Plausible,
-    #   tail terminator  unmeasured. `wedge` and `hub` never appeared without
-    #   assembly chaperone  `baseplate` in a small sample, which is the redundancy
-    #                    argument that pruned `complex`.
-    #   tape measure     siphovirus anatomy, and 01F2 is a myovirus -- it could
-    #                    not have fired on the genome that produced this list.
+    #   tail terminator  unmeasured -- a HYPOTHESIS, which is the difference
+    #   assembly chaperone  between these and the two removed below. `wedge` and
+    #   tape measure     `hub` never appeared without `baseplate` in a small
+    #                    sample, the same redundancy argument that pruned
+    #                    `complex`; `tape measure` is siphovirus anatomy and
+    #                    could not have fired on the myovirus that produced this
+    #                    list. All five are kept so that a larger run measures
+    #                    them: `term_trigger_counts` in every run_result is the
+    #                    instrument, and a term that stays silent across many
+    #                    genomes, or fires alone and often, removes itself.
+    #
+    # REMOVED 2026-11-21, on provenance rather than on counts:
+    #   tube initiator   The cryo-EM map says gp16 IS a tube initiator. The
+    #   initiator        matcher reads PDB TITLES, and gp16's said "Baseplate
+    #                    Complex for Myoviridae Phage XM1". These words were
+    #                    transcribed from the human EXPLANATION of the case, not
+    #                    from anything in the data the tool sees -- so there was
+    #                    no hypothesis for a larger run to test, and no amount of
+    #                    the same data could have falsified them. That is a
+    #                    different defect from being unmeasured, and the remedy
+    #                    is different too: removal, not measurement. (`initiator`
+    #                    bare is also a generic word -- replication initiator
+    #                    proteins carry it -- though the product-name gate bounds
+    #                    how often that could matter.)
     #
     # ARCHITECTURE BLIND SPOT: this vocabulary is myovirus tail anatomy, built
     # from one Salmonella myovirus. T7 fired zero terms, which is uninformative
@@ -4590,8 +4601,6 @@ presentation_signals:
     assembly_context_terms:
       - baseplate
       - wedge
-      - tube initiator
-      - initiator
       - tail terminator
       - assembly chaperone
       - hub

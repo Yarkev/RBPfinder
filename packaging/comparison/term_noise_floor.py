@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-"""Measure the presentation vocabulary's noise floor against hit titles already on disk.
+"""Measure the presentation vocabulary's noise floor against data already on disk.
 
-    python3 term_noise_floor.py runs/*/stage3_local runs/*/run_result.json
+    python3 term_noise_floor.py --aggregate runs/          # across many runs
+    python3 term_noise_floor.py runs/*/stage3_local        # against raw hit titles
+
+`--aggregate` is the mode for a large-scale round: it rolls up the
+`term_trigger_counts` every run already records, so the calibration comes out as a
+by-product with no extra step. Use the other mode to look at the titles themselves when
+a term's behaviour needs explaining rather than counting.
 
 `presentation_signals` is `calibration: pending`. Eight assembly-context words are in the
 vocabulary and, as of 2026-11-21, only `baseplate` has fired on a true signal. The other
@@ -82,9 +88,86 @@ def titles_from(path):
     return out
 
 
+def aggregate_runs(paths):
+    """Roll up `presentation_signals.term_trigger_counts` across many runs.
+
+    The point of this mode: a large-scale application round produces the calibration
+    data as a BY-PRODUCT, with no extra step and no extra CPU. Every run already records
+    which terms fired and how often, so a sweep over N genomes answers "is this word
+    earning its place" far better than the two genomes the vocabulary was seeded from.
+
+    A term silent across many genomes removes itself. A term firing on nearly every
+    candidate removes itself the other way. Neither conclusion needs a decision from
+    anyone -- which is the point of `calibration: pending` being a status rather than an
+    apology.
+    """
+    runs, totals, fired_in = 0, collections.Counter(), collections.Counter()
+    examined, with_signal, per_run = 0, 0, []
+    for path in paths:
+        p = pathlib.Path(path)
+        files = sorted(p.rglob("run_result.json")) if p.is_dir() else [p]
+        for f in files:
+            try:
+                d = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            block = d.get("presentation_signals")
+            if not isinstance(block, dict):
+                continue
+            runs += 1
+            examined += block.get("candidates_examined") or 0
+            with_signal += block.get("candidates_with_any_signal") or 0
+            counts = block.get("term_trigger_counts") or {}
+            per_run.append((d.get("phage_id") or f.parent.name, counts))
+            for term, n in counts.items():
+                totals[term] += n
+                fired_in[term] += 1
+    return runs, totals, fired_in, examined, with_signal, per_run
+
+
+def report_aggregate(paths):
+    terms = vocabulary()
+    runs, totals, fired_in, examined, with_signal, per_run = aggregate_runs(paths)
+    if not runs:
+        sys.exit("found no run_result.json carrying a presentation_signals block in: %s"
+                 % ", ".join(paths))
+
+    print("%d run(s), %d candidates examined, %d carried at least one signal (%.1f%%)"
+          % (runs, examined, with_signal,
+             100.0 * with_signal / max(examined, 1)))
+    print()
+    print("%-20s %8s %8s %9s  %s"
+          % ("term", "hits", "runs", "runs %", "verdict on this evidence"))
+    for term in sorted(terms, key=lambda x: (-totals[x], x)):
+        share = 100.0 * fired_in[term] / runs
+        if not totals[term]:
+            verdict = "silent -- remove if this sweep is representative"
+        elif share > 80.0:
+            verdict = "fires almost everywhere -- likely noise"
+        elif totals[term] == 1:
+            verdict = "one hit -- still a single observation"
+        else:
+            verdict = "earning its place"
+        print("%-20s %8d %8d %8.0f%%  %s"
+              % (term, totals[term], fired_in[term], share, verdict))
+
+    extra = sorted(set(totals) - set(terms))
+    if extra:
+        print()
+        print("counted but not in the current vocabulary (pruned since these runs): %s"
+              % ", ".join(extra))
+    print()
+    print("Terms are PRESENTATION ONLY. Nothing above changed a tier, a family or a")
+    print("candidate set, so pruning or keeping a word here costs attention, not")
+    print("correctness. See presentation_signals in rules/decision_rules.yaml.")
+    return 0
+
+
 def main(argv):
     if not argv:
-        sys.exit(__doc__.strip().splitlines()[2].strip())
+        sys.exit("usage: term_noise_floor.py <stage3_local dir | run dir | *.json> ...")
+    if argv[0] == "--aggregate":
+        return report_aggregate(argv[1:] or ["."])
     terms = vocabulary()
     if not terms:
         sys.exit("the vocabulary is empty; nothing to measure")

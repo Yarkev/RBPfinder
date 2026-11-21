@@ -7,7 +7,7 @@ visibility: "public"
 starting-prompt: "Analyse this phage GenBank file with RBPfinder and tell me which proteins to test first as receptor-binding proteins."
 ---
 
-# RBPfinder (linux/biomni build, v1.2.4+linux)
+# RBPfinder (linux/biomni build, v1.2.5+linux)
 
 Use the installed `rbpfinder` executable. **Do not reproduce or replace its scientific
 decision rules in model reasoning.** The rules live in the package's frozen
@@ -385,6 +385,12 @@ Preserve these when summarising:
   unusual. And **a signal firing on nothing is not a clean bill of health**: the
   vocabulary is myovirus tail anatomy derived from a single genome, so on a siphovirus or
   podovirus a zero means "not applicable" rather than "nothing to flag".
+
+  Over several genomes, roll the counts up rather than reading them one at a time:
+  `python3 packaging/comparison/term_noise_floor.py --aggregate <runs-dir>`. A term
+  silent across many genomes, or firing on nearly all of them, should be reported as a
+  vocabulary finding — that is how `calibration: pending` gets discharged, and it costs
+  nothing beyond the runs already done.
 - **`top_unresolved_candidates` is a conditional key.** It appears only when the
   shortlist is empty, or when `completeness` is `limited`, so the top-level key count is
   31 or 32. It is presentation-only: those CDS are **not** promoted to Rescue and are

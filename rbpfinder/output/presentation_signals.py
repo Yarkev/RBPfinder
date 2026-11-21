@@ -38,6 +38,33 @@ def _enabled(rules, check):
     return bool(rules.get("%s.%s.enabled" % (_BASE, check), False))
 
 
+def _names_another_part(product, rules):
+    """True when this CDS's own product positively names a different structural part.
+
+    Both signals are about a *fibre*, so neither should fire for a protein the annotator
+    already called something else. Two measured looseness reports collapse into this one
+    rule:
+
+      * a chaperone fired the conflict check for its own hit titles, because
+        "tail fiber assembly protein" CONTAINS the substring "tail fiber". That is the
+        same bug class as the C1/C2 whole-token fix and `normalize._direction`'s
+        "a compound name takes the conservative reading" -- a rule this codebase already
+        had, which this matcher failed to carry over when it was written.
+      * the adjacency signal fired on a tail sheath. A chaperone next to a sheath does
+        not make the sheath a fibre.
+
+    The term list is a POINTER to `stage4.direction_map.supports_structural_only`, not a
+    copy, so there is one vocabulary to fix. "tail fiber protein" is not on it and stays
+    in scope; the helper nouns, sheath, tube and baseplate are on it and are skipped.
+    """
+    if not rules.get(_BASE + ".self_product_names_another_part.enabled", False):
+        return False
+    src = rules.get(_BASE + ".self_product_names_another_part.terms_from")
+    terms = [str(x).lower() for x in (rules.get(src) or ())] if src else []
+    low = (product or "").lower()
+    return any(term in low for term in terms)
+
+
 def _hit_descriptions(records):
     """Every hit description a candidate carries, with the family that produced it."""
     out = []
@@ -53,7 +80,7 @@ def _structure_annotation_conflict(product, records, rules, counts):
     ctx = _terms(rules, "structure_annotation_consistency.assembly_context_terms")
     low = (product or "").lower()
     claimed = [p for p in part if p in low]
-    if not claimed:
+    if not claimed or _names_another_part(product, rules):
         return None
 
     found = []
@@ -76,7 +103,8 @@ def _structure_annotation_conflict(product, records, rules, counts):
     }
 
 
-def _fibre_chaperone_adjacency(cds_id, cds_rows, rules, is_circular, counts):
+def _fibre_chaperone_adjacency(cds_id, cds_rows, rules, is_circular, counts,
+                               product=None):
     """A fibre assembly chaperone immediately downstream, on the same strand.
 
     Downstream follows the strand, because the signal is an operon one: a fibre and its
@@ -86,7 +114,7 @@ def _fibre_chaperone_adjacency(cds_id, cds_rows, rules, is_circular, counts):
     """
     terms = _terms(rules, "fibre_chaperone_adjacency.chaperone_terms_subset")
     window = rules.get("%s.fibre_chaperone_adjacency.downstream_window_cds" % _BASE, 2)
-    if not terms:
+    if not terms or _names_another_part(product, rules):
         return None
 
     n = len(cds_rows)
@@ -169,7 +197,8 @@ def build(candidates, records_by_id, cds_rows, rules, is_circular=False):
             if hit:
                 per["structure_annotation_conflict"] = hit
         if _enabled(rules, "fibre_chaperone_adjacency"):
-            hit = _fibre_chaperone_adjacency(cid, cds_rows, rules, is_circular, counts)
+            hit = _fibre_chaperone_adjacency(cid, cds_rows, rules, is_circular, counts,
+                                             product=product)
             if hit:
                 per["fibre_chaperone_adjacency"] = hit
         if _enabled(rules, "direction_conflict"):

@@ -2,7 +2,7 @@
 
 Read from the code, not from SKILL.md. Where the two disagree, §5 says so.
 
-Current as of **`v1.2.3+linux`**. Revised 2026-11-21 against a Biomni test round, which
+Current as of **`v1.2.4+linux`**. Revised 2026-11-21 against a Biomni test round, which
 corrected an attribution in §2 that was mine and wrong — the correction is quoted in
 place rather than edited away.
 
@@ -230,7 +230,7 @@ run_flags             e.g. REMOTE_SUBMISSION_BLOCKED, STRUCTURAL_SCREEN_UNAVAILA
 ```
 
 `top_unresolved_candidates` is present only when the shortlist is empty or
-`completeness` is `limited`, so the key count is **32 or 33** at `v1.2.3+linux` — not a
+`completeness` is `limited`, so the key count is **32 or 33** at `v1.2.4+linux` — not a
 fixed number, and not a number worth quoting: this document has stated it wrong three
 times (29, then 31, then 31-or-32, each true of a different commit). Count it from a run
 if you need it. It is presentation-only: those CDS are not promoted to Rescue and are not counted

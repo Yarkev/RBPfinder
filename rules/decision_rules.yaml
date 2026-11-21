@@ -13,7 +13,7 @@ meta:
   # read "1.2.1-linux" while the package read "1.2.1+linux" -- close enough to look
   # right in a diff, different enough that `pip show` and a run's own citation disagreed,
   # and "-linux" is not even a valid PEP 440 local version.
-  version: "1.2.3+linux"
+  version: "1.2.4+linux"
   scope: "Caudoviricetes"
   optimises: "complete-recall@K"
   provenance: "reverse-engineered from SMA phage work (SOP_v0.md); not yet calibrated"
@@ -4549,10 +4549,16 @@ presentation_signals:
       - tip attachment
       - distal tail
     # Words in a hit description that describe assembly machinery rather than the
-    # fibre itself. `complex` is the one to watch: PDB titles say "complex"
-    # constantly, so it is the first candidate for pruning once trigger counts
-    # exist. It is included because the test round named it, not because it is
-    # known to discriminate.
+    # fibre itself.
+    #
+    # `complex` was here and is PRUNED (2026-11-21), on the first real trigger
+    # counts: of 3 hits on 01F2, 2 were chaperone proteins matching a Mu title
+    # "Complex of Mu phage tail fiber and its chaperone" -- a chaperone hitting a
+    # fibre-chaperone complex structure is the normal case, not a conflict. The
+    # one true signal (gp16's "Baseplate Complex for Myoviridae Phage XM1") also
+    # carries `baseplate`, so nothing is lost. This is what `calibration: pending`
+    # plus `term_trigger_counts` is for: the word was included because the test
+    # round named it, and the data removed it.
     assembly_context_terms:
       - baseplate
       - wedge
@@ -4562,10 +4568,37 @@ presentation_signals:
       - assembly chaperone
       - hub
       - tape measure
-      - complex
     note: >
       Measured case: 01F2 gp16, product "tail fiber protein", cryo-EM says tube
       initiator. The hint is for a reader; the tier stays where the evidence put it.
+
+  # Applies to BOTH checks above and below, and fixes two looseness reports from
+  # the first real run with one rule.
+  #
+  # (1) A chaperone fired the conflict check for its own hit titles, because
+  #     "tail fiber assembly protein" CONTAINS the substring "tail fiber". Same
+  #     bug class as the C1/C2 whole-token fix and `normalize._direction`'s
+  #     "a compound name takes the conservative reading" -- a rule this codebase
+  #     already had, which a new matcher failed to carry over.
+  # (2) The adjacency signal fired on a tail sheath: a chaperone next to a sheath
+  #     does not make the sheath a fibre.
+  #
+  # The rule is therefore: do not emit either signal for a CDS whose own product
+  # name positively names a DIFFERENT structural part. It points at the existing
+  # list rather than restating it, so there is one vocabulary to fix.
+  #
+  # Deliberately NOT "require positive fibre evidence", which the test round
+  # suggested: that would also exclude a dark-matter candidate -- a hypothetical
+  # protein with a chaperone immediately downstream -- which is the most
+  # interesting case this signal has. Excluding only what is positively named
+  # something else keeps it. Reversible if the measured noise says otherwise.
+  self_product_names_another_part:
+    enabled: true
+    terms_from: stage4.direction_map.supports_structural_only
+    note: >
+      "tail fiber protein" is not on that list and stays in scope; "tail fiber
+      assembly protein", "tail sheath protein", "tail tube" and the helper nouns
+      are on it and are skipped.
 
   fibre_chaperone_adjacency:
     enabled: true

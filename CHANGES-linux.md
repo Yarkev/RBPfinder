@@ -922,6 +922,76 @@ the fourth value this one field has had in four commits (29, 31, 31-or-32, 32-or
 three of my four statements of it were wrong. `WORKFLOW.md` now declines to quote it and
 says to count it from a run — a number that changes every release is not documentation.
 
+## v1.2.4+linux — calibrating the signals on real data
+
+### 50. The signals' first real trigger counts, and what they changed (2026-11-21)
+
+Both acceptance criteria from item 48 were met on 01F2 full-stack + T7: gp16 fired
+`structure_annotation_conflict` on a T hit titled *"Baseplate Complex for Myoviridae Phage
+XM1"* — exactly the tube-initiator identity the cryo-EM map showed — and gp23 fired
+`fibre_chaperone_adjacency` (chaperone at offset +1, same strand) while gp16 did not.
+Primary/Rescue were member-identical to `be5aaed`. `direction_conflict` fired on gp9 and
+the CDP, the two candidates the deep read advanced on structural grounds, with D saying
+structural-only and T saying receptor-binding — the conflict known issue #4 says the
+family model cannot express.
+
+Then the trigger counts did their job. `01F2: baseplate 1, complex 3, fiber assembly 4,
+tail assembly 2`; T7 all zero. Three changes follow, all from the data:
+
+**`complex` is pruned.** Of its 3 hits, 2 were *chaperone* proteins matching a Mu title
+"Complex of Mu phage tail fiber and its chaperone" — a chaperone hitting a fibre-chaperone
+complex structure is the normal case, not a conflict. The one true signal carries
+`baseplate` as well, so nothing is lost. The word was in the list because the test round
+named it; the data removed it. That is what `calibration: pending` plus
+`term_trigger_counts` was for.
+
+**Two looseness reports collapse into one rule, and the cause is a bug class this project
+had already fixed twice.** A chaperone fired the conflict check for its own hit titles
+because `"tail fiber assembly protein"` **contains the substring** `"tail fiber"`. That is
+the same failure as the C1/C2 whole-token fix and as `normalize._direction`'s "a compound
+name takes the conservative reading" — a rule the codebase already held, which I did not
+carry over when writing a new matcher. The adjacency signal firing on a tail sheath is the
+same shape: a chaperone next to a sheath does not make the sheath a fibre.
+
+`self_product_names_another_part` now gates **both** checks: no signal for a CDS whose own
+product positively names a different structural part. It points at
+`stage4.direction_map.supports_structural_only` rather than restating it, so there is one
+vocabulary to fix. `"tail fiber protein"` is not on that list and stays in scope, which a
+test pins — otherwise the genuine case would be excluded with the chaperones.
+
+**One deliberate difference from what was suggested.** The test round proposed ANDing
+adjacency with the candidate's own fibre evidence. The gate implemented is narrower: skip
+only what is positively named *something else*. Requiring positive fibre evidence would
+also exclude a dark-matter candidate — a hypothetical protein with a chaperone immediately
+downstream — which is the most interesting case this signal has. A test pins that such a
+candidate still fires. Reversible if measured noise says otherwise.
+
+`product_says=None` in the report was a key-name mismatch on the reading side: the field
+is `product_claims`. A missing product correctly produces no signal, and both facts now
+have tests so the contract is unambiguous either way.
+
+Two of the item-48 tests failed after the pruning, because they asserted `complex` was in
+the vocabulary — true when written, false now. They were updated rather than the code: the
+tests caught a deliberate vocabulary change, which is what they are for.
+
+### 51. A deployment trap that produced a false verification (2026-11-21)
+
+The first verification round ran against the **old code**: a non-editable copy had been
+installed into the venv and shadowed the editable path, so `import rbpfinder` resolved to
+the copy and a `git checkout` changed nothing that ran. Reported and re-run clean.
+
+Worth recording because it is the same class of error as an earlier one in this project —
+running a venv's python from the source directory, which made `import rbpfinder` resolve
+to the working tree and produced a false PASS. Both share a shape: **the thing that
+executed was not the thing that was edited, and nothing in the output said so.**
+
+Two troubleshooting entries added: verify with
+`python -c "import rbpfinder,inspect;print(inspect.getsourcefile(rbpfinder))"` rather than
+assume, and compare `versions.package` in `run_result.json` against the commit intended.
+`uv pip install -e` survives a branch switch with no reinstall; changing *install method*
+is what needs the check. Item 39's version recording is what makes the second check
+possible at all.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend
@@ -957,11 +1027,13 @@ says to count it from a run — a number that changes every release is not docum
   `All rights reserved` and the wheel metadata says `Proprietary`. That is the repository's
   current stated intent, so the bundle carries it; changing it later means re-cutting any
   bundle already distributed.
-- **The presentation signals' vocabulary is unmeasured** (item 48). Nine
-  assembly-context words and four part names, from one measured case, firing zero times
-  on the synthetic probe. Being inert, a wrong vocabulary here costs attention rather
-  than correctness — but it needs the labelled strains before the word lists are worth
-  trusting or pruning.
+- **The presentation signals' vocabulary has one genome's calibration** (items 48, 50).
+  `complex` is pruned and the self-product gate is in; the remaining eight
+  assembly-context words have been measured on 01F2 and T7 only, where `baseplate` was
+  the sole one to fire on a true signal. `wedge`, `tube initiator`, `initiator`, `tail
+  terminator`, `assembly chaperone`, `hub` and `tape measure` have not fired on real data
+  yet — unmeasured rather than shown useful. Being inert, a wrong vocabulary here costs
+  attention rather than correctness.
 - **pharokka upstream, not this repository**: version 1.10.1's `input_commands.py` has an
   MMseqs2 version allowlist that omits v19 and raises `UnboundLocalError`; `pharokka
   install` reports a Zenodo 403 block page as an MD5 mismatch. Both worth an issue at

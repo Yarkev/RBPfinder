@@ -7,7 +7,7 @@ visibility: "public"
 starting-prompt: "Analyse this phage GenBank file with RBPfinder and tell me which proteins to test first as receptor-binding proteins."
 ---
 
-# RBPfinder (linux/biomni build, v1.2.3+linux)
+# RBPfinder (linux/biomni build, v1.2.4+linux)
 
 Use the installed `rbpfinder` executable. **Do not reproduce or replace its scientific
 decision rules in model reasoning.** The rules live in the package's frozen
@@ -416,6 +416,7 @@ Preserve these when summarising:
 | `np.long` AttributeError from phold | mixed numpy/scipy versions | phold is not on bioconda: `pip install phold==1.2.5` with `numpy<2` and `transformers==4.46.3` pinned; repair with `pip install --force-reinstall --no-deps scipy==1.14.1` |
 | `blastp` prints USAGE | the flag is `-num_threads`, not `-threads` | — |
 | a tool that worked yesterday is gone | `/opt/conda` and apt-installed packages do not survive hibernation | put every prefix environment under `/workspace` |
+| a run behaves like the OLD code after `git checkout` | a non-editable copy was installed into the venv and shadows the editable path, so `import rbpfinder` resolves to the copy | **verify, do not assume**: `python -c "import rbpfinder,inspect;print(inspect.getsourcefile(rbpfinder))"` must point into your checkout. `uv pip install -e` survives a branch switch with no reinstall; changing *install method* needs this check. Also compare `versions.package` in `run_result.json` against the commit you meant to test |
 | NCBI RefSeq viral proteins 404 | the file is volumed: `viral.1.protein.faa.gz`, not `viral.protein.faa.gz` | — |
 
 ## Editing the rules

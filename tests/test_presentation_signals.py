@@ -156,17 +156,10 @@ def test_trigger_counts_are_reported_per_term(r):
     counts = block["term_trigger_counts"]
     assert counts["baseplate"] == 1
     assert counts["wedge"] == 1
-    assert counts["complex"] == 1
     assert counts["fiber assembly"] == 1          # the downstream chaperone
-
-
-def test_complex_is_in_the_vocabulary_and_flagged_as_the_one_to_watch(r):
-    """It was named by the test round, not shown to discriminate. PDB titles say
-    "complex" constantly, so it is the first candidate for pruning."""
-    terms = r.get(_B + ".structure_annotation_consistency.assembly_context_terms")
-    assert "complex" in terms
-    yaml_text = (ROOT / "rules" / "decision_rules.yaml").read_text(encoding="utf-8")
-    assert "`complex` is the one to watch" in yaml_text
+    # `complex` was in this list and the first real counts removed it -- see
+    # test_complex_was_pruned_from_the_vocabulary.
+    assert "complex" not in counts
 
 
 # ============================================================ the checks themselves
@@ -289,6 +282,109 @@ def test_the_direction_conflict_check_would_not_have_caught_gp16(r):
          "strength": "moderate", "raw": {"hit_description": "tail fiber protein"}}]}
     per = ps.build(cands, records, [], r)["signals"].get("F_CDS_0016", {})
     assert "direction_conflict" not in per
+
+
+# ============================== calibration from the first real run (2026-11-21)
+
+def test_complex_was_pruned_from_the_vocabulary(r):
+    """First real trigger counts: of 3 hits on 01F2, 2 were chaperone proteins matching
+    a Mu title "Complex of Mu phage tail fiber and its chaperone" -- a chaperone hitting
+    a fibre-chaperone complex structure is the normal case, not a conflict."""
+    terms = r.get(_B + ".structure_annotation_consistency.assembly_context_terms")
+    assert "complex" not in terms
+
+
+def test_pruning_complex_does_not_lose_the_measured_true_signal(r):
+    """gp16's real hit title is "Baseplate Complex for Myoviridae Phage XM1" -- it
+    carries `baseplate` too, which is why the word could be pruned safely."""
+    cands = [{"cds_id": "X_CDS_0019",
+              "annotation": {"product": "tail fiber protein"}}]
+    records = {"X_CDS_0019": [
+        {"family": "T", "tool": "local_foldseek",
+         "direction": "supports_apparatus_membership", "strength": "moderate",
+         "raw": {"hit_description": "Baseplate Complex for Myoviridae Phage XM1"}}]}
+    hit = ps.build(cands, records, [], r)["signals"]["X_CDS_0019"]
+    assert "structure_annotation_conflict" in hit
+    terms = {f["term"] for f in hit["structure_annotation_conflict"]["but_hits_describe"]}
+    assert terms == {"baseplate"}
+
+
+@pytest.mark.parametrize("product", [
+    "tail fiber assembly protein", "tail fibre assembly protein",
+    "tail fiber chaperone", "tail assembly chaperone",
+])
+def test_a_chaperone_does_not_conflict_with_its_own_hit_titles(r, product):
+    """Reported from the first real run. The cause was substring matching:
+    "tail fiber assembly protein" CONTAINS "tail fiber". Same bug class as the C1/C2
+    whole-token fix and `normalize._direction`'s conservative reading of a compound
+    name -- a rule this codebase already had and this matcher did not carry over."""
+    cands = [{"cds_id": "C_X", "annotation": {"product": product}}]
+    records = {"C_X": [
+        {"family": "T", "tool": "local_foldseek",
+         "direction": "supports_structural_only", "strength": "moderate",
+         "raw": {"hit_description":
+                 "Complex of Mu phage tail fiber and its chaperone, baseplate"}}]}
+    assert "structure_annotation_conflict" not in ps.build(
+        cands, records, [], r)["signals"].get("C_X", {})
+
+
+def test_a_sheath_with_a_chaperone_downstream_is_not_a_fibre(r):
+    """Also reported from the first real run: adjacency fired on a tail sheath. A
+    chaperone next to a sheath does not make the sheath a fibre."""
+    rows = [{"cds_id": "S_1", "product": "tail sheath protein",
+             "strand": "+", "start_nt": 1, "end_nt": 1500},
+            {"cds_id": "S_2", "product": "tail fiber assembly protein",
+             "strand": "+", "start_nt": 1600, "end_nt": 2000}]
+    cands = [{"cds_id": "S_1", "annotation": {"product": "tail sheath protein"}}]
+    assert ps.build(cands, {"S_1": []}, rows, r)["signals"] == {}
+
+
+def test_a_dark_matter_candidate_still_gets_the_adjacency_signal(r):
+    """The gate is "does this protein positively name a DIFFERENT part", not "does it
+    have positive fibre evidence". The test round suggested the latter; it would also
+    exclude a hypothetical protein with a chaperone immediately downstream, which is the
+    most interesting case this signal has. Excluding only what is named something else
+    keeps it."""
+    rows = [{"cds_id": "H_1", "product": "hypothetical protein",
+             "strand": "+", "start_nt": 1, "end_nt": 2400},
+            {"cds_id": "H_2", "product": "tail fiber assembly protein",
+             "strand": "+", "start_nt": 2500, "end_nt": 2900}]
+    cands = [{"cds_id": "H_1", "annotation": {"product": "hypothetical protein"}}]
+    sig = ps.build(cands, {"H_1": []}, rows, r)["signals"]
+    assert "fibre_chaperone_adjacency" in sig["H_1"]
+
+
+def test_the_exclusion_points_at_the_existing_vocabulary(r):
+    """One vocabulary to fix, not two. "tail fiber protein" must NOT be on that list, or
+    the genuine case would be excluded along with the chaperones."""
+    src = r.get(_B + ".self_product_names_another_part.terms_from")
+    assert src == "stage4.direction_map.supports_structural_only"
+    terms = r.get(src)
+    assert "tail sheath" in terms and "fiber assembly" in terms
+    assert "tail fiber" not in terms
+
+
+def test_a_missing_product_produces_no_conflict_signal(r):
+    """The first run's report quoted `product_says=None` alongside a firing signal. That
+    key does not exist in this output -- the field is `product_claims` -- so it was a
+    key-name mismatch, not this. Pinned so the contract is unambiguous either way."""
+    cands = [{"cds_id": "N_1", "annotation": {"product": None}}]
+    records = {"N_1": [
+        {"family": "T", "tool": "t", "direction": "supports_structural_only",
+         "strength": "moderate", "raw": {"hit_description": "baseplate wedge"}}]}
+    per = ps.build(cands, records, [], r)["signals"].get("N_1", {})
+    assert "structure_annotation_conflict" not in per
+
+
+def test_the_output_field_is_named_product_claims(r):
+    """Named here so a consumer can key on it with confidence."""
+    cands = [{"cds_id": "P_1", "annotation": {"product": "tail fiber protein"}}]
+    records = {"P_1": [
+        {"family": "T", "tool": "t", "direction": "supports_apparatus_membership",
+         "strength": "moderate", "raw": {"hit_description": "baseplate"}}]}
+    hit = ps.build(cands, records, [], r)["signals"]["P_1"]
+    assert set(hit["structure_annotation_conflict"]) == {
+        "product_claims", "but_hits_describe", "reading", "action"}
 
 
 def test_every_check_can_be_switched_off(r):

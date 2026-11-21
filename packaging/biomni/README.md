@@ -79,6 +79,34 @@ under the same name; if you ever do want a new id, delete the old directory firs
 `/mnt/results/` is a deployment. Keep edits in the repo and redeploy, so the registered
 skill and the code it drives cannot drift.
 
+## 2a. Verify the deployment, do not assume it
+
+**The skill and the code must be at the same commit.** The skill documents flags; if the
+installed code is older, an agent following it hits an argparse error on a flag the
+documentation promises. Deploying one without the other is the most likely way this goes
+wrong.
+
+```bash
+# which source is actually imported -- NOT which one you edited
+python -c "import rbpfinder, inspect; print(inspect.getsourcefile(rbpfinder))"
+
+# and what a run says about itself
+rbpfinder --genbank <any.gbk> --phage-id T --out /tmp/t --no-local-stage2 \
+          --quiet-progress &&
+python -c "import json; print(json.load(open('/tmp/t/run_result.json'))['versions'])"
+```
+
+The import path must point inside your checkout, and `versions.package` must match the
+commit you meant to deploy. A test round was once verified **against the old code** and
+reported as passing: a non-editable copy had been installed into the venv and shadowed the
+editable path, so `import rbpfinder` resolved to the copy and `git checkout` changed
+nothing that ran. `uv pip install -e` survives a branch switch with no reinstall; changing
+*install method* is what needs this check.
+
+`versions.package` reading `0+unknown` means the tool is running from a source tree that
+was never installed — not a released version, and any number it produces is
+unattributable.
+
 ## 3. Ask
 
 ```

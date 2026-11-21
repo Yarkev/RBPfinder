@@ -88,10 +88,29 @@ shortlist.** Reporting it as a shortlist is the most consequential misreading av
 ### Stage 2 / Stage 3 — the two evidence searches
 
 Stage 2 is family S, from a local BLAST database or imported results. **With no database
-configured, S does not exist** — and S is what carries *functional* homolog annotations,
-the thing that lifts a candidate above apparatus. This is the single highest-value
-configuration step; the measured T7 gp17 case moved `R3` → `R2` and into Primary on
-nothing but a configured phage database.
+configured, S does not exist.** S carries *functional* homolog annotations when the
+database has them — and that qualifier is load-bearing, which an earlier version of this
+document got wrong.
+
+> **Corrected 2026-11-21, against a Biomni test round.** This said the T7 gp17 case moved
+> `R3` → `R2` and into Primary "on nothing but a configured phage database". It does not.
+> With a full RefSeq viral protein database (722,823 sequences) gp17's S top-10 hits are
+> *all* annotated "tail fiber protein" — apparatus consensus 10 of 10 — so its S record
+> reads `supports_apparatus_membership`. gp17 goes `R3-E1` → `R3-E3` and **never enters
+> Primary**. More families raise `tier_e`; they cannot raise `tier_r`.
+>
+> What actually produces the promotion is a **D family carrying a receptor-binding
+> reading**, which needs a PHROG/phold annotation: phold's `phrog:4242` gives gp17 a D
+> record, the D term map reads "tail fiber protein" as `supports_receptor_binding`, and
+> that one direct family takes it to `R2` and into Primary.
+>
+> The error was mine and the evidence was in front of me: the family list I was given
+> was `D+G+S+T`, D included. I saw S appear and credited the tier change to it without
+> checking which family R2 actually requires.
+
+So the operative advice is not "configure a database" but **configure a source of
+functional annotation**. A database of part names raises how well you looked, not what
+you concluded. See §5.1 and §5.2.
 
 Stage 3 is family T, from local Foldseek with ProstT5 (sequence → 3Di, no structure
 prediction step, nothing transmitted). Default scope is the **nominated pool**;
@@ -189,11 +208,12 @@ run.
 
 ## 3. What a run leaves behind
 
-`run_result.json` carries, among its 31 top-level keys:
+`run_result.json` carries, among its 31 or 32 top-level keys:
 
 ```
 versions              {package, rules, schema}   <- new; quote it when you report a number
 vocabulary            {mode, overridden}
+top_unresolved_candidates   CONDITIONAL -- see below
 primary_set
 rescue_set
 candidates            every pool member, with its channels, families, tiers, role
@@ -203,6 +223,16 @@ stage2_local / stage3_local   did S and T run, and over what scope
 capability_matrix     one canonical answer about what was available
 run_flags             e.g. REMOTE_SUBMISSION_BLOCKED, STRUCTURAL_SCREEN_UNAVAILABLE
 ```
+
+`top_unresolved_candidates` is present only when the shortlist is empty or
+`completeness` is `limited`, so the top-level key count is **31 or 32**, not a fixed
+number. It is presentation-only: those CDS are not promoted to Rescue and are not counted
+in any recall figure. Its absence carries no information `primary_set`, `rescue_set` and
+`completeness_assessment` do not already give. Making it always present with `null` would
+be the tidier contract and matches this project's preference for explicit states over
+absence; it is deliberately **not** done yet, because a consumer written as
+`if "top_unresolved_candidates" in d: ...` would start reading a `None`, and test rounds
+are in flight.
 
 Exit codes: `0` success, `2` validation failed **or an internal schema violation**,
 `3` missing capability, `1` unexpected internal defect. Exit 2's two meanings are why the
@@ -241,8 +271,18 @@ This is the section to argue with.
    product name but as apparatus on a homolog's description. The two live term maps
    disagree on 3 terms; `rbp_ontology` reconciles them and `--vocabulary unified` applies
    it, **but the default has not moved** and will not until the comparison says so.
-   Measured risk: gp17's product name *is* "tail fiber protein", so `unified` may undo
-   the DB_PHAGE gain. See `packaging/comparison/VOCABULARY-COMPARISON.md`.
+   **No longer only a risk — measured, on the literature gold standard.** On T7 with a
+   phold annotation, `unified` pushes gp17 out of Primary (`R2-E3` → `R3-E3`) while
+   `current` and `explicit_guard` keep it in. So on T7 `unified` gives the biologically
+   wrong answer and the default gives the right one.
+
+   The uncomfortable part: the divergence `unified` removes is **what produces the correct
+   answer here.** The same words, "tail fiber protein", read as receptor-binding through
+   D (PHROG keyword) and as apparatus through S (homolog description), and that
+   disagreement is exactly what lifts gp17. Reconciling the two maps is therefore not
+   obviously a cleanup. One strain is one strain, but it is the gold-standard strain, so
+   the burden of proof has moved onto `unified` rather than sitting on the default.
+   See `packaging/comparison/VOCABULARY-COMPARISON.md`.
 
 3. **`decorrelate` picks a family's representative by strength first.** So a `weak`
    receptor-binding record loses the slot to a `moderate` apparatus one — observed on T7

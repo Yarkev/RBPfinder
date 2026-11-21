@@ -39,6 +39,7 @@ def _package_version():
 from .policy import DataPolicy
 from . import schema as schema_mod
 from .ingest import phold as phold_in
+from .ingest import phold_sequences as phold_seq
 from .ingest import pharokka as pharokka_in
 from .ingest import genbank as genbank_in
 from .nominate import (c1_context, c2_keywords, c3_dark_matter, c4_cluster,
@@ -243,7 +244,16 @@ def run(args):
     # this it surfaced as a bare FileNotFoundError traceback with exit 1 -- the "third
     # shape" errors.py exists to prevent, and the code an agent reads as "tool bug"
     # rather than "fix your path".
+    # Mode B only. In Mode A the GenBank already carries the sequences, so accepting it
+    # there would silently ignore a file the user explicitly passed.
+    if args.phold_genbank and not args.phold:
+        raise InputValidationError(
+            "--phold-genbank supplies the protein sequences the phold per-CDS TSV does "
+            "not carry, so it only applies with --phold. With a GenBank input, pass it "
+            "as --genbank; it already carries the sequences.")
+
     for flag, value in (("--genbank", args.genbank), ("--phold", args.phold),
+                        ("--phold-genbank", args.phold_genbank),
                         ("--fasta", getattr(args, "fasta", None)),
                         ("--pharokka", args.pharokka),
                         ("--stage2-manifest", args.stage2_manifest)):
@@ -272,6 +282,12 @@ def run(args):
         notes = []
         if args.pharokka:
             notes = pharokka_in.reconcile(cds, pharokka_in.read(args.pharokka))
+        # The TSV has no translation column, so without this Mode B cannot produce
+        # family T at all. stage3_local refuses rather than searching nothing; this is
+        # the route that makes the TSV usable, and it keeps phold's per-CDS fields.
+        if args.phold_genbank:
+            notes.extend(phold_seq.attach(cds, args.phold_genbank,
+                                          phage_id=args.phage_id))
         input_mode = "B_raw_fasta"
         gene_caller = args.gene_caller
 
@@ -1252,6 +1268,14 @@ def main(argv=None):
                           "this prints how to obtain an annotated GenBank and exits "
                           "without transmitting anything")
     p.add_argument("--pharokka")
+    p.add_argument("--phold-genbank", metavar="PHOLD_GBK",
+                   help="Mode B only: the GenBank phold wrote beside the TSV "
+                        "(`phold.gbk`), used for the protein sequences the per-CDS "
+                        "table does not carry. Without it, Mode B cannot produce "
+                        "family T and a configured structure database makes the run "
+                        "refuse rather than search nothing. CDS are matched on "
+                        "coordinates and a poor match is refused, because attaching a "
+                        "sequence to the wrong CDS is a confident wrong answer")
     # Optional since M15B: an installed package carries its own rules and schema, so a
     # user never has to point at a checked-out repository.
     p.add_argument("--rules", help="override the packaged decision_rules.yaml")

@@ -40,8 +40,13 @@ It is idempotent: re-run it any time, and after a rebuild it restores the databa
 > `--foldseek-all-cds` forces genome-wide.
 
 Also install a sequence database for family S (local BLAST) — without one, and with
-remote disabled, S can never be earned, and a real RBP stalls at R3 however good its
-structural hit:
+remote disabled, S can never be earned at all.
+
+What a database does **not** do by itself is raise a tier. Measured on T7 with a full
+RefSeq viral protein database: gp17's top-10 homologs are all annotated "tail fiber
+protein", so S reads apparatus and gp17 stays at `R3`. Extra families raise `tier_e`;
+only a receptor-binding direction raises `tier_r`. For that you need a *functional*
+annotation — which on T7 came from running phold, not from any database:
 
 ```bash
 rbpfinder database configure phage <blast-db-prefix>

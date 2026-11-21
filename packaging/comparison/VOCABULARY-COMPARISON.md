@@ -126,13 +126,33 @@ Primary changes    1        reference moves    2
 
 ## 5. The risk this must resolve
 
-**`unified` may undo the DB_PHAGE gain for gp17-class proteins.**
+**Measured, 2026-11-19, on T7: `unified` gives the wrong answer and the default gives the
+right one.**
 
-T7 gp17's product name is "tail fiber protein". With a phage sequence database configured
-it reached `R2`, families `D+G+S+T`, rank 3, in Primary. In `unified` its **D** record
-flips from receptor binding to apparatus, so it keeps `R2` only if `S` or `T` still
-supplies a receptor-binding direction — that is, only if its homologs carry a *functional*
-term rather than another part name.
+This section used to state the risk as a prediction. A Biomni test round resolved it on
+the literature gold standard:
+
+```
+mode             T7 accurate route (phold.gbk + S + T)      gp17
+current          Primary: CDS_0039, CDS_0040, CDS_0052       R2-E3   in Primary
+explicit_guard   Primary: CDS_0039, CDS_0040, CDS_0052       R2-E3   in Primary
+unified          Primary: CDS_0039, CDS_0040                 R3-E3   OUT
+```
+
+gp17's product name is "tail fiber protein", so under `unified` its **D** record flips
+from receptor binding to apparatus. Nothing else supplies a receptor-binding direction:
+its S homologs are part names (apparatus 10/10 against a full RefSeq viral database) and
+its PDB titles are part names or crystallographic phrases. All four families then read
+apparatus and it caps at `R3`.
+
+Note what this means, because it is not the result the unification was expected to have:
+**the divergence `unified` removes is what produces the correct answer here.** The same
+words read as receptor-binding through D and apparatus through S, and that disagreement
+is what lifts gp17. Reconciling the two maps is therefore not obviously a cleanup, and
+the burden of proof has moved onto `unified`.
+
+One strain is one strain. But it is the gold-standard strain, and it is also the strain
+this whole line of work started from.
 
 So the decisive question for the benchmark is not "did anything change" but:
 
@@ -164,10 +184,11 @@ Write `--shared` and `--arm` values with `=`; a value starting with a dash is ot
 read as another option name. The run resumes, so an interrupted sweep continues where it
 stopped.
 
-**Configure DB_PHAGE first.** Running this under evidence starvation measures the change
-against a crippled baseline: with no S family, the product-name direction is the main
-thing carrying a receptor-binding reading at all, so `unified` would look far more
-destructive than it is.
+**Run the accurate route (phold), not just a configured database.** Running this under
+evidence starvation measures the change against a crippled baseline. More than that: the
+T7 result above only appears on the phold route, because the D family that `unified`
+flips exists only when there is a PHROG annotation to produce it. A fast-route sweep
+would show `unified` changing nothing on gp17 and would answer the wrong question.
 
 ### Acceptance
 

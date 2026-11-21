@@ -455,14 +455,21 @@ family S matters. Two tests pin the override and the script's use of it.
 
 This closes the loop on the original complaint. With DB_PHAGE configured, T7 gp17 moves
 from `R3`, families G+T, outside Primary — to `R2`, families **D+G+S+T**, rank 3, in
-Primary. The cause was evidence starvation, as diagnosed, not the vocabulary.
+Primary.
+
+> **The attribution in the next sentence was wrong, and item 43 corrects it.** It read:
+> "The cause was evidence starvation, as diagnosed, not the vocabulary." A Biomni test
+> round could not reproduce the promotion from a sequence database alone, and the
+> vocabulary divergence turns out to be exactly what produces it.
 
 ---
 
 ### 33. The three vocabularies, measured before anything was changed (2026-11-18)
 
-Item 32 established that the gp17 failure was evidence starvation, not vocabulary. That
-removed the urgency but not the divergence, so it was measured rather than assumed. Three
+Item 32 took the gp17 failure to be evidence starvation rather than vocabulary — wrongly,
+as item 43 records; it is both, and the divergence is the load-bearing half. That reading
+removed the urgency but not the divergence, so the divergence was measured rather than
+assumed. Three
 readers answer *does this text support receptor binding?* from three different maps:
 
 | | reads | covers | disagrees with `rbp_ontology` on |
@@ -705,6 +712,139 @@ SKILL.md also now tells the agent to quote `versions` and `vocabulary` whenever 
 a number, and to say so explicitly when `package` reads `0+unknown`, which means the tool
 is running from a source tree that was never installed rather than a released version.
 
+## v1.2.2+linux — the Biomni test round
+
+A full test round on the Biomni sandbox (2026-11-19 to 11-21) against T7 `NC_001604`, a
+4-strain comparative cohort, and a user's real *Salmonella* phage with a cryo-EM map.
+It confirmed all 196 tests, verified all 14 known issues in `WORKFLOW.md` §5 — and found
+one blocking defect plus one wrong claim of mine.
+
+### 43. CORRECTION: the gp17 promotion was not the sequence database (2026-11-21)
+
+Item 32 reported that configuring DB_PHAGE moved T7 gp17 from `R3` outside Primary to
+`R2`, rank 3, in Primary, and concluded "the cause was evidence starvation, as diagnosed,
+not the vocabulary". **The attribution is wrong**, and the conclusion with it.
+
+Measured against a full RefSeq viral protein database (722,823 sequences):
+
+```
+gp17 S top-10 hits   ALL annotated "tail fiber protein"  -> apparatus consensus 10/10
+                     (including its own NP_042005.1 at 100% identity)
+gp17 tier            R3-E1 -> R3-E3        never enters Primary
+```
+
+More families raise `tier_e`. They cannot raise `tier_r`, which needs a direction. What
+actually produces the promotion is a **D family carrying a receptor-binding reading**:
+phold's `phrog:4242` annotation gives gp17 a D record, the D term map reads "tail fiber
+protein" as `supports_receptor_binding`, and that one direct family takes it to `R2-E3`
+and into Primary.
+
+```
+fast      RefSeq GenBank + S + T    Primary: CDS_0039, CDS_0040          gp17  R3-E3
+accurate  phold.gbk       + S + T   Primary: + CDS_0052 (gp17)           gp17  R2-E3
+```
+
+**The evidence was in front of me.** The family list I was given was `D+G+S+T`, D
+included. I saw S appear and credited the tier change to it without checking which family
+R2 requires. The same slip is why item 32 concluded "not the vocabulary": gp17 is lifted
+by the D/S disagreement over the identical words "tail fiber protein" — the vocabulary
+divergence is not incidental to that result, it *is* that result.
+
+Corrected in `CHANGES` items 32 and 33, `WORKFLOW.md` §2 and §5.1–5.2, both SKILL.md
+files, `KNOWN_ISSUES.md` §11, `packaging/biomni/README.md` and the comparison plan. The
+operative advice everywhere is now **configure a source of functional annotation**, not
+"configure a database".
+
+### 44. The vocabulary question has its first gold-standard data point (2026-11-21)
+
+Item 36 stated a risk before the run rather than after. It resolved against `unified`:
+
+```
+mode             T7 accurate route                       gp17
+current          Primary: 0039, 0040, 0052 (3)            R2-E3   in Primary
+explicit_guard   Primary: 0039, 0040, 0052 (3)            R2-E3   in Primary
+unified          Primary: 0039, 0040      (2)             R3-E3   OUT
+```
+
+On the literature gold standard `unified` gives the biologically wrong answer and the
+default gives the right one. And the reason is the uncomfortable one: **the divergence
+`unified` removes is what produces the correct answer.** Reconciling the two maps is
+therefore not obviously a cleanup, and the burden of proof has moved onto `unified`.
+
+The default has not moved and does not move on one strain. Two things changed in the plan:
+the sweep must run the **accurate** route, because the D family `unified` flips exists
+only where a PHROG annotation produced it — a fast-route sweep would show no gp17 effect
+and answer the wrong question; and `explicit_guard` is now the more defensible candidate
+for a future default than `unified`, being behaviour-identical to `current` here while
+honouring `dual_role_precedence` on every reader.
+
+### 45. Mode B lost family T for the whole genome, in silence (2026-11-21)
+
+**The blocking defect from the test round.** `--phold <per_cds_predictions.tsv>` produced
+`stage3_local.cds_searched: 0` with no warning anywhere, while a structure database was
+configured — i.e. while the user had asked for that search. On the real *Salmonella*
+genome it cost two true candidates: a 985 aa fibre subunit and an Ig-domain protein.
+
+Root cause: phold's TSV has no translation column, so `phold.read()` produces records
+without `translation`, and `stage3_local.prepare()` filtered on exactly that key. Two
+different zeros were collapsed into one silent one.
+
+They are now distinguished, which is the actual fix:
+
+* **no CDS carries a sequence** — an input problem. Refused with exit 2, before any
+  binary is resolved, and the message names all three ways out (`--genbank phold.gbk`,
+  `--phold-genbank`, `--no-local-stage3`). The check sits before capability resolution on
+  purpose: placed after, it would never be reached on a machine without foldseek.
+* **no CDS is in the nominated pool** — a legitimate zero. Stays silent, because the
+  empty pool is itself Stage 1's answer.
+
+New `--phold-genbank` makes the TSV route usable rather than merely refused, which is
+what the test round asked for: it reads translations from the GenBank phold wrote beside
+the TSV, so the run keeps the TSV's per-CDS fields (`prostt5_confidence`, `qCov`, the
+category proportions) that the GenBank does not carry. Matching is on coordinates with
+the identifier as a cross-check, and **a match below 90% is refused** rather than
+reported — a sequence attached to the wrong CDS is a confident wrong answer that nothing
+downstream could detect. Mode A rejects the flag instead of ignoring it.
+
+`tests/test_mode_b_sequences.py`, 11 tests. Four of them fail against the previous
+commit, which is what makes them a regression test rather than a description.
+
+### 46. `top_unresolved_candidates` is a conditional key (2026-11-21)
+
+It appears only when the shortlist is empty or `completeness` is `limited`
+(`cli.py:784-788`), so the top-level key count is **31 or 32** — my "31 top-level keys"
+was a third wrong count of the same field. Documented in `WORKFLOW.md` §3 and the skill.
+
+Making it always present with `null` would be the tidier contract and matches this
+project's preference for explicit states over absence. Deliberately not done: a consumer
+written `if "top_unresolved_candidates" in d: ...` would start reading a `None`, and test
+rounds are in flight. It is a decision for the maintainer, not a silent change.
+
+### 47. Documentation the test round earned (2026-11-21)
+
+* **The route choice is bigger than "an hour of CPU".** On T7 it is the difference
+  between the literature RBP being in the shortlist and not. The skill now shows both
+  Primary sets so the user decides with that in front of them.
+* **A new "when the user has a structure" section.** Measured against a cryo-EM map on
+  the *Salmonella* phage: of 5 candidates, 4 structurally supported (including the top
+  RBP, a 986 aa fibre with a Family 11 sugar-binding module), 1 relocated rather than
+  wrong (a capsid decoration protein with Ig domains — not a tail RBP, but worth testing
+  for sugar binding on its own), and 1 false positive (annotated "tail fiber protein";
+  the map shows a tube initiator). Structural localisation outranks annotation transfer,
+  and the agent should say where they disagree rather than defend the ranking.
+* **The false positive's shape is worth naming:** it was pushed into Primary by a
+  part-name annotation agreeing with itself across D and S (a 99.3%-identity homolog also
+  called "tail fiber protein"). Agreement between two readers of the same part name is
+  not two independent lines of evidence about function. De-correlation collapses tools,
+  not vocabularies — which is known issue #4 from a new angle.
+* **Nine troubleshooting entries, all measured**: the `foldseek databases PDB` prefix bug
+  (a prefix with a directory component makes foldseek's own install script fail its `mv`
+  and scatter the files, reported as `Cannot open lookup file ..._ca.lookup`); its
+  three-argument form; `mmseqs.org` 302-ing to a repository page; Zenodo returning 403 to
+  data-centre IPs while `pharokka install` calls it an MD5 mismatch; phold's pip-only
+  install with `numpy<2` pinned; `-num_threads` not `-threads`; `/opt/conda` and apt
+  packages not surviving hibernation; volumed RefSeq viral protein files.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend
@@ -740,6 +880,21 @@ is running from a source tree that was never installed rather than a released ve
   `All rights reserved` and the wheel metadata says `Proprietary`. That is the repository's
   current stated intent, so the bundle carries it; changing it later means re-cutting any
   bundle already distributed.
+- **P0-2 from the test round is not done, and needs a decision first.** The request: when
+  a structure or homolog hit *description* contains baseplate/complex/assembly words while
+  the product name says tail fiber, emit a consistency hint; and add a chaperone-adjacency
+  signal (a candidate immediately downstream of a "tail fiber assembly protein"). Both are
+  presentation-layer only and must not touch family counting. Neither is implementable
+  without a **new keyword list**, and a hint that fires too often is noise while one that
+  fires too rarely is useless — that is a vocabulary decision with benchmark implications,
+  so it is put to the maintainer rather than guessed. The cheaper variant that needs no
+  new vocabulary — surfacing an intra-candidate *direction* conflict — would not have
+  caught the measured gp16 case, where D and S agreed and only the external structure
+  disagreed.
+- **pharokka upstream, not this repository**: version 1.10.1's `input_commands.py` has an
+  MMseqs2 version allowlist that omits v19 and raises `UnboundLocalError`; `pharokka
+  install` reports a Zenodo 403 block page as an MD5 mismatch. Both worth an issue at
+  `gbouras13/pharokka`.
 - Upstream items left alone: `transports.py` and `KNOWN_ISSUES.md` reference other
   `scripts/` files that still do not exist (`benchmark_stage2_48.py`,
   `m7c_pipeline_metrics.py`, `fetch_uniprot.ps1`, `pre_e4_localisation.py`); `packaging/install/*` expecting a `runtime/*.whl` that only exists

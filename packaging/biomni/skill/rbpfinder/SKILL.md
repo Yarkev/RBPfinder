@@ -7,7 +7,7 @@ visibility: "public"
 starting-prompt: "Analyse this phage GenBank file with RBPfinder and tell me which proteins to test first as receptor-binding proteins."
 ---
 
-# RBPfinder (linux/biomni build, v1.2.1+linux)
+# RBPfinder (linux/biomni build, v1.2.2+linux)
 
 Use the installed `rbpfinder` executable. **Do not reproduce or replace its scientific
 decision rules in model reasoning.** The rules live in the package's frozen
@@ -95,22 +95,62 @@ The two routes differ by about an hour of CPU, so the choice is the user's.
 If the user has no preference, use fast. Prefer accurate when the genome is poorly
 annotated (many hypothetical proteins), or when a fast run came back `limited`.
 
+**Say what accurate buys before they decide, because it is larger than it sounds.** On T7
+it is the difference between the literature-established RBP being in the shortlist and
+not being in it:
+
+```
+fast      Primary: CDS_0039, CDS_0040              gp17  R3-E3   not in Primary
+accurate  Primary: CDS_0039, CDS_0040, CDS_0052    gp17  R2-E3   in Primary
+```
+
+No sequence database closes that gap — see Bootstrap. If the user's genome is one where
+getting the real RBP into the shortlist matters more than an hour of CPU, accurate is the
+answer, and an hour is cheap against a wrong shortlist.
+
 What phold buys is **annotation quality**: it resolves CDS pharokka leaves as
 "hypothetical", which improves nomination and the direction read off a product name. It
 does **not** add a second independent structural evidence family — de-correlation
 collapses a phold hit and a Foldseek hit to one family by design.
 
-Hand over phold's **GenBank** (`phold.gbk`), never its per-CDS predictions TSV: the table
-carries no protein sequence, so local structure search would be silently unavailable.
+Hand over phold's **GenBank** (`phold.gbk`) with `--genbank`. That is the recommended
+route and the one every measurement here used.
+
+The per-CDS predictions TSV has no protein-sequence column, so on its own it cannot
+produce family T for anything. That used to fail silently — `cds_searched: 0` with no
+warning, measured on a real genome where it cost two true candidates. It now **refuses**
+with exit 2 when a structure database is configured. If you have a reason to want the
+TSV's extra per-CDS fields (`prostt5_confidence`, `qCov`, the category proportions),
+pass both:
+
+```bash
+rbpfinder --phold phold_per_cds_predictions.tsv --phold-genbank phold.gbk ...
+```
+
+CDS are matched on coordinates and a poor match is refused rather than guessed at: a
+sequence attached to the wrong CDS would be a confident wrong answer that nothing
+downstream could detect.
 
 ## Bootstrap: making the local capabilities available
 
 `doctor` reporting UNAVAILABLE is the start of a task, not the end of one.
 
-**Local Stage 2 (family S — the one that usually decides the answer).** Configure a
-sequence database: `rbpfinder database configure phage <blast-db-prefix>` (and `host` if
-you have a matching one). Without it the S family does not exist, and S is what carries
-*functional* homolog annotations — the thing that lifts a candidate above apparatus.
+**Local Stage 2 (family S).** Configure a sequence database:
+`rbpfinder database configure phage <blast-db-prefix>` (and `host` if you have a matching
+one). Without it the S family does not exist at all.
+
+**But the database's annotation quality decides whether it changes any conclusion, and
+you must not promise otherwise.** Measured on T7 with a full RefSeq viral protein
+database (722,823 sequences): gp17's top-10 homologs are *all* annotated "tail fiber
+protein", so the S record reads apparatus, 10 hits out of 10. gp17 went `R3-E1` →
+`R3-E3` and stayed out of Primary. **More families raise `tier_e`; only a
+receptor-binding direction raises `tier_r`.**
+
+So tell the user what a database can and cannot do: a library of part names improves how
+well the genome was looked at. What lifts a candidate is a *functional* term — "receptor
+binding", "adsorption", "depolymerase" — in a homolog annotation, a PHROG annotation or
+a curated entry. On T7 the CDS that did reach Primary (CDS_0039/0040) got there on
+"adsorption" in their homolog annotations.
 
 On a sandbox whose home directory is not in the persistent snapshot, `source` the
 environment file first: it sets `RBPFINDER_CONFIG` to a path that survives, so the
@@ -231,12 +271,53 @@ do not present a starved run as a biological finding.
 ### Family T alone is usually not enough
 
 Local structure evidence rarely lifts a true RBP on its own. Measured on T7: gp17, the
-literature-established RBP, came out `R3 / E2 / unresolved / supports_apparatus_membership`
+literature-established RBP, came out `R3 / unresolved / supports_apparatus_membership`
 with a strong structural hit, because every PDB title for it is a part name or a
-crystallographic phrase. What drives a candidate up is the **S family** — homology to
-characterised phage proteins whose annotations carry functional terms — with T
-corroborating. If the user wants better answers, configuring a phage sequence database
-does more than any flag.
+crystallographic phrase.
+
+Nor does adding a sequence database fix it by itself — see Bootstrap. gp17 sat at `R3`
+with `G+S+T`, three families, all three reading apparatus.
+
+**What moved it was annotation, not search.** Running phold gives gp17 a `phrog:4242`
+annotation, which produces a **D family** record; the D term map reads "tail fiber
+protein" as `supports_receptor_binding`, and that single direct family takes gp17 to
+`R2-E3` and into Primary. Measured both ways on T7:
+
+```
+fast     RefSeq GenBank + S + T   Primary: CDS_0039, CDS_0040        gp17  R3-E3
+accurate phold.gbk       + S + T   Primary: + CDS_0052 (gp17)        gp17  R2-E3
+```
+
+So when the user wants better answers on a poorly-annotated genome, **the accurate route
+(phold) does more than any database or flag.** Say that rather than sending them to
+configure another library.
+
+### When the user has a structure, the structure outranks the annotation
+
+If the user brings a cryo-EM map, a published structure, or a high-confidence predicted
+model, **structural localisation beats annotation transfer** — and you should say so
+plainly rather than defending the tool's ranking.
+
+Measured against a user's cryo-EM map on a *Salmonella* phage, 5 candidates:
+
+```
+4  structurally supported          -- including the top RBP, a 986 aa fibre with a
+                                      Family 11 sugar-binding module
+1  relocated, not wrong            -- a capsid decoration protein with Ig domains; not a
+                                      tail RBP, but its sugar-binding ability is worth
+                                      testing on its own
+1  FALSE POSITIVE                  -- annotated "tail fiber protein"; the map shows a
+                                      tube initiator, a baseplate assembly component
+```
+
+The false positive is instructive and you should expect its shape: the protein was pushed
+into Primary by a part-name annotation agreeing with itself across D and S (a 99.3%
+identity homolog also called "tail fiber protein"). **Agreement between two readers of
+the same part name is not two independent lines of evidence about function** — it is the
+same annotation seen twice. De-correlation collapses tools, not vocabularies.
+
+So when structural information exists: report the tool's ranking as produced, then state
+where the structure disagrees and which way. Do not re-rank, and do not argue the tier.
 
 ## Known biology that disagrees with the output
 
@@ -278,6 +359,12 @@ Preserve these when summarising:
 ## Completion checks
 
 - Confirm the run exited 0 and cite `run_result.json` and the report files.
+- **`top_unresolved_candidates` is a conditional key.** It appears only when the
+  shortlist is empty, or when `completeness` is `limited`, so the top-level key count is
+  31 or 32. It is presentation-only: those CDS are **not** promoted to Rescue and are
+  **not** counted in any recall figure. Do not read its absence as a signal — it means
+  the shortlist was non-empty and not `limited`, which `primary_set`, `rescue_set` and
+  `completeness_assessment` already told you.
 - **Quote `versions` when you report a number.** Every run records
   `versions: {package, rules, schema}` and `vocabulary: {mode, overridden}`. A tier, a
   rank or a completeness state is only meaningful against the rules that produced it, so
@@ -305,6 +392,15 @@ Preserve these when summarising:
 | `A2 could not run: ...missing_genomewide_T_or_M` | the structure search was pool-scoped, or no structure source exists | **state the completeness ceiling** — this is the designed behaviour on the default path, not a fault. `--foldseek-all-cds` makes A2 runnable — experimental, and not a no-op on the result; see its entry above |
 | exit 2 mentioning schema validation | internal contract violation | report it; the user's input is not at fault |
 | a structure database label is refused | the label is not one Stage 3 recognises | use `pdb100` / `cath50` |
+| `stage3_local.cds_searched: 0` on a Mode B run | the phold TSV carries no protein sequences | this now refuses with exit 2 instead. Use `--genbank phold.gbk`, or add `--phold-genbank phold.gbk` |
+| `Cannot open lookup file ..._ca.lookup` after `foldseek databases PDB` | the output prefix contained a directory component, so foldseek's own install script failed its `mv` and scattered the files | re-download from **inside** the target directory with a flat prefix: `cd /path/to/dbs && foldseek databases PDB pdb100 tmp` |
+| `foldseek databases` complains about arguments | it needs **three** paths: `databases <name> <out-prefix> <tmp>` | pass all three |
+| the foldseek download lands on a repository page | `mmseqs.org` 302s to the repo | use `https://mmseqs.com/foldseek/foldseek-linux-avx2.tar.gz` |
+| `pharokka install` reports an MD5 mismatch | Zenodo returns **403** to data-centre IPs, and the "database" downloaded is a few-hundred-byte block page | check the file size before believing the MD5 message. Install the database by hand: unpack the tarball and flatten the inner directory into `<env>/lib/python3.*/databases/`, then verify with `check_db_installation()` |
+| `np.long` AttributeError from phold | mixed numpy/scipy versions | phold is not on bioconda: `pip install phold==1.2.5` with `numpy<2` and `transformers==4.46.3` pinned; repair with `pip install --force-reinstall --no-deps scipy==1.14.1` |
+| `blastp` prints USAGE | the flag is `-num_threads`, not `-threads` | — |
+| a tool that worked yesterday is gone | `/opt/conda` and apt-installed packages do not survive hibernation | put every prefix environment under `/workspace` |
+| NCBI RefSeq viral proteins 404 | the file is volumed: `viral.1.protein.faa.gz`, not `viral.protein.faa.gz` | — |
 
 ## Editing the rules
 

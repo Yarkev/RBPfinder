@@ -182,8 +182,33 @@ def prepare(cds_rows, rules, capability, outdir, prostt5_model=None, env=None,
         prov["reason"] = "no applicable structure database; local Stage 3 did not run"
         return [], prov
 
-    recs = [r for r in cds_rows if r.get("translation")
-            and (restrict_ids is None or r["cds_id"] in restrict_ids)]
+    # Two different zeros, which this used to conflate into one silent one.
+    #
+    # "No CDS carries a protein sequence" is an INPUT problem: Mode B reads phold's
+    # per-CDS TSV, which has no translation column at all, so every record was filtered
+    # out here and the run reported `cds_searched: 0` with no warning anywhere. Measured
+    # on a real genome that cost two true candidates -- a 985 aa fibre subunit and an
+    # Ig-domain protein -- with nothing in the output to say family T had been dropped.
+    # A structure database was configured, so the user had asked for this search.
+    #
+    # "No CDS is in the nominated pool" is a legitimate zero and stays silent: the pool
+    # being empty is itself the answer, reported by Stage 1.
+    with_seq = [r for r in cds_rows if r.get("translation")]
+    if not with_seq:
+        from .errors import InputValidationError
+        raise InputValidationError(
+            "local structure search was requested (a structure database is configured) "
+            "but not one CDS carries a protein sequence, so family T could not be "
+            "produced for anything. This is what phold's per-CDS TSV looks like: the "
+            "table has no translation column.\n"
+            "  Either run against the GenBank, which carries the sequences:\n"
+            "      rbpfinder --genbank phold.gbk ...\n"
+            "  or pass it alongside the TSV, to keep phold's per-CDS fields as well:\n"
+            "      rbpfinder --phold phold_per_cds_predictions.tsv "
+            "--phold-genbank phold.gbk ...\n"
+            "  or state that you do not want structure evidence: --no-local-stage3")
+    recs = [r for r in with_seq
+            if restrict_ids is None or r["cds_id"] in restrict_ids]
     art_dir = pathlib.Path(outdir) / "stage3_local"
     art_dir.mkdir(parents=True, exist_ok=True)
 

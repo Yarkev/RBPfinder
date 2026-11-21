@@ -245,8 +245,8 @@ P5  doctor 对缺分类学文件的结构库报 AVAILABLE（假阳性，该库�
   PDB 标题是晶体学描述，不是功能注释
 
 本地结构证据单独存在时不足以把真 RBP 推上高层：实测 T7 gp17（文献确立的 RBP）
-  = R3 / E2 / apparatus。把判读推上去的是 S 家族（对已知噬菌体蛋白的同源，
-  需要配置 DB_PHAGE）加上 T 的功能描述命中。见第 11 条
+  = R3 / apparatus。把它推上去的【不是】S 家族 —— 见第 11 条，那里有 2026-11-19
+  的实测更正：真正起作用的是带 PHROG 注释产生的 D 家族
 ```
 
 ## 11. T7 gp17 判为 R3/apparatus — 机制与设计意图（2026-11-16）
@@ -266,13 +266,30 @@ tier R3 / E2 / role unresolved / 方向 `supports_apparatus_membership`。
   对照：tailspike 则【被加入】positive_rbp_terms（M20-b2A），因为它是单个蛋白
   同时在尾部又识别受体（P22 gp9），"整簇共享注释"的理由不适用。实测 424 个候选变 2 个。
 
-证据饥饿（可修）：
-  gp17 需要带【功能词】的同源注释才能拿到 receptor_binding 方向，
-  而那要靠 DB_PHAGE（S 家族）。未配置序列数据库时，S 家族根本不存在。
+证据饥饿（部分可修）：
+  gp17 需要带【功能词】的注释才能拿到 receptor_binding 方向。
 ```
 
-所以正确的处置不是把 `tail fiber` 加回正向词表（那被测量过，更差），而是
-**配置 DB_PHAGE**。agent 在报告时应当显式指出这个分歧并解释机制，而不是沉默。
+**2026-11-19 实测更正（Biomni 测试轮）**：本节原先说处置办法是"配置 DB_PHAGE"。
+这被证伪了。
+
+```
+配 RefSeq 病毒蛋白全库（722,823 条）后：
+  gp17 的 S top-10 同源【全部】注释为 "tail fiber protein" -> apparatus 共识 10/10
+  gp17：R3-E1 -> R3-E3，始终【未进】Primary
+  —— 家族数增加只抬 tier_e，抬不动 tier_r
+
+跑 phold 后：
+  phrog:4242 注释产生 D 家族记录，D 术语表把 "tail fiber protein" 读作
+  supports_receptor_binding -> 一个 direct RB 家族 -> R2-E3，进 Primary
+```
+
+所以正确的处置是**用带功能注释的注释源（phold/PHROG，或 curated 功能注释库）**，
+而不是任意一个序列库。agent 在报告时应当显式指出这个分歧并解释机制，而不是沉默。
+
+值得注意的一点：让 gp17 得到正确答案的，正是两张术语表的【分歧本身】 ——
+同一个词 "tail fiber protein"，D 读受体结合，S 读装置成员。`--vocabulary unified`
+消除这个分歧后，gp17 在 T7 上跌出 Primary（实测）。所以"统一词表"不是显然的清理。
 
 ## 不属于缺陷的行为
 

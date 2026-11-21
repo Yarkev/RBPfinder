@@ -7,7 +7,7 @@ visibility: "public"
 starting-prompt: "Analyse this phage GenBank file with RBPfinder and tell me which proteins to test first as receptor-binding proteins."
 ---
 
-# RBPfinder (linux/biomni build, v1.2.2+linux)
+# RBPfinder (linux/biomni build, v1.2.3+linux)
 
 Use the installed `rbpfinder` executable. **Do not reproduce or replace its scientific
 decision rules in model reasoning.** The rules live in the package's frozen
@@ -316,6 +316,12 @@ identity homolog also called "tail fiber protein"). **Agreement between two read
 the same part name is not two independent lines of evidence about function** — it is the
 same annotation seen twice. De-correlation collapses tools, not vocabularies.
 
+`presentation_signals` in `run_result.json` now flags that shape without a structure in
+hand: it reports when a hit *description* describes baseplate or assembly machinery while
+the product name claims a fibre, and when a fibre assembly chaperone sits immediately
+downstream (the measured true fibre had one; the false positive did not). Those are hints
+for a reader and nothing more — they changed no tier.
+
 So when structural information exists: report the tool's ranking as produced, then state
 where the structure disagrees and which way. Do not re-rank, and do not argue the tier.
 
@@ -359,6 +365,16 @@ Preserve these when summarising:
 ## Completion checks
 
 - Confirm the run exited 0 and cite `run_result.json` and the report files.
+- **Read `presentation_signals`, and report it as what it is.** Three checks run after
+  the candidate sets are fixed and flag shapes worth a human look: a product name
+  claiming a fibre while a hit *description* describes baseplate machinery; a fibre
+  assembly chaperone immediately downstream; the candidate's own records disagreeing
+  about direction. **No signal there changed a tier, a family or a set, and none may be
+  reported as evidence that a protein is or is not an RBP.** Say "this is flagged as
+  worth checking", never "the tool thinks this is not an RBP". Its vocabulary is
+  `calibration: pending`, so if `term_trigger_counts` shows a term firing on nearly
+  every candidate, report that too — it means the hint is noise, not that the genome is
+  unusual.
 - **`top_unresolved_candidates` is a conditional key.** It appears only when the
   shortlist is empty, or when `completeness` is `limited`, so the top-level key count is
   31 or 32. It is presentation-only: those CDS are **not** promoted to Rescue and are

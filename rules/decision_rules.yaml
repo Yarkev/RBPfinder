@@ -13,7 +13,7 @@ meta:
   # read "1.2.1-linux" while the package read "1.2.1+linux" -- close enough to look
   # right in a diff, different enough that `pip show` and a run's own citation disagreed,
   # and "-linux" is not even a valid PEP 440 local version.
-  version: "1.2.2+linux"
+  version: "1.2.3+linux"
   scope: "Caudoviricetes"
   optimises: "complete-recall@K"
   provenance: "reverse-engineered from SMA phage work (SOP_v0.md); not yet calibrated"
@@ -4501,6 +4501,112 @@ interpro_remote:
 #
 # Anything other than `current` moves tiers and must not become the default before the
 # benchmark says what it did. The run records which mode produced it.
+# ---------------------------------------------------------------------------
+# PRESENTATION SIGNALS -- hints for a human reader. Never evidence.
+# ---------------------------------------------------------------------------
+# Added 2026-11-21 from a Biomni test round that found a false positive no family
+# could have caught: 01F2 gp16 was pushed into Primary by the product name "tail
+# fiber protein" agreeing with a 99.3%-identity homolog ALSO called "tail fiber
+# protein". A cryo-EM map showed a tube initiator -- a baseplate assembly
+# component. Agreement between two readers of the same PART NAME is not two
+# independent lines of evidence about function, but de-correlation collapses
+# tools, not vocabularies, so both records stood.
+#
+# These signals surface that shape for a person. They are PRESENTATION ONLY:
+#
+#   * nothing here reaches nomination, family counting, tiering or the candidate
+#     sets. `tests/test_presentation_signals.py` fills this whole block with an
+#     adversarial vocabulary -- every term matching everything -- and asserts the
+#     pool, the families, the tiers and Primary/Rescue are byte-identical. If that
+#     test can be made to fail, this block has escaped its layer.
+#   * no automatic downgrade. A hint invites a human look; it never moves a tier.
+#     `absence_is_not_counter_evidence` applies here as everywhere.
+#
+# calibration: pending, in the same sense as the tiers (see meta.provenance): the
+# word lists are a starting point from one measured case and the literature, with
+# no fitted trigger rate. `term_trigger_counts` in the output exists to fix that:
+# run it, see which terms fire and how often, then prune. A hint that fires on
+# every candidate is noise; one that never fires is dead weight.
+presentation_signals:
+  calibration: pending
+  layer: presentation_only
+  forbidden: >
+    reaching nomination, evidence families, tiering, ranking or the candidate
+    sets; downgrading a candidate automatically; being reported as evidence or
+    as a reason a candidate is or is not an RBP.
+
+  structure_annotation_consistency:
+    enabled: true
+    question: >
+      The product name claims a fibre. Does any hit DESCRIPTION for the same
+      protein describe baseplate or assembly machinery instead?
+    # Product names this applies to: the part names that read as receptor-binding
+    # somewhere while naming a structure the whole fibre cluster shares. Exactly
+    # the terms `rbp_ontology` and `stage4.direction_map` disagree about.
+    part_name_terms:
+      - tail fiber
+      - tail fibre
+      - tip attachment
+      - distal tail
+    # Words in a hit description that describe assembly machinery rather than the
+    # fibre itself. `complex` is the one to watch: PDB titles say "complex"
+    # constantly, so it is the first candidate for pruning once trigger counts
+    # exist. It is included because the test round named it, not because it is
+    # known to discriminate.
+    assembly_context_terms:
+      - baseplate
+      - wedge
+      - tube initiator
+      - initiator
+      - tail terminator
+      - assembly chaperone
+      - hub
+      - tape measure
+      - complex
+    note: >
+      Measured case: 01F2 gp16, product "tail fiber protein", cryo-EM says tube
+      initiator. The hint is for a reader; the tier stays where the evidence put it.
+
+  fibre_chaperone_adjacency:
+    enabled: true
+    question: >
+      Is there a fibre assembly chaperone immediately downstream, on the same
+      strand? Fibre genes commonly sit in an operon with their chaperone.
+    # Reuses stage4.direction_map.supports_structural_only rather than restating
+    # the helper nouns: one vocabulary, one place to fix it.
+    chaperone_terms_from: stage4.direction_map.supports_structural_only
+    chaperone_terms_subset:
+      - tail assembly
+      - fiber assembly
+      - fibre assembly
+      - assembly chaperone
+      - fiber chaperone
+      - fibre chaperone
+    downstream_window_cds: 2
+    note: >
+      Measured on 01F2: gp23 (Fiber II) has gp24/gp25 downstream and satisfies
+      this; gp16, the false positive, does not. Corroboration for a reader --
+      NOT a nomination channel and NOT a family. The C1 positional evidence for
+      the same CDS is already an independent family and must not be counted twice.
+
+  direction_conflict:
+    enabled: true
+    question: >
+      Do this candidate's own records disagree about direction -- one saying
+      receptor binding while another says structural-only or non-RBP identity?
+    note: >
+      The cheap half of the same idea, needing no new vocabulary: it reads the
+      directions already assigned. It would NOT have caught 01F2 gp16, where D and
+      S agreed and only the external structure disagreed, so it is additional to
+      the check above rather than a substitute. What it does catch is a T record
+      fighting a D record, which known issue #4 says the evidence model cannot
+      express -- `stage3.af3_priority` treats exactly that conflict as a P1
+      trigger while one representative per family cannot carry both readings.
+    receptor_binding_direction: supports_receptor_binding
+    conflicting_directions:
+      - supports_structural_only
+      - supports_non_rbp_identity
+
 vocabulary:
   mode: current
   modes: [current, explicit_guard, unified]

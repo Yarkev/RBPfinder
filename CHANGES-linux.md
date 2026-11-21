@@ -845,6 +845,83 @@ rounds are in flight. It is a decision for the maintainer, not a silent change.
   install with `numpy<2` pinned; `-num_threads` not `-threads`; `/opt/conda` and apt
   packages not surviving hibernation; volumed RefSeq viral protein files.
 
+## v1.2.3+linux
+
+### 48. P0-2: presentation signals, with the guardrails that make them allowable (2026-11-21)
+
+The test round found a false positive **no evidence family could have caught**: 01F2 gp16,
+product "tail fiber protein", pushed into Primary by a 99.3%-identity homolog *also*
+called "tail fiber protein". A cryo-EM map showed a tube initiator — baseplate assembly
+machinery. Agreement between two readers of the same part name is not two independent
+lines of evidence about function, but de-correlation collapses **tools, not vocabularies**,
+so both records stood and nothing in the output said why to doubt them.
+
+I had put the red-line question to the maintainer rather than guess, because both
+requested signals need a new keyword list and a hint firing too often is noise while one
+firing too rarely is dead weight. The answer reframed the line usefully: it was never
+"do not touch the file" but *calibration-bearing values must not migrate silently* — and
+whether something crosses it "depends on whether it can be shown not to affect a
+conclusion", not on which file it lives in. Granted on four guardrails, all implemented:
+
+1. **Inert, demonstrated.** `tests/test_presentation_signals.py` fills the whole
+   vocabulary with terms matching everything and asserts the pool, families, tiers,
+   ranking and Primary/Rescue are byte-identical. Measured under saturation: **16 of 16
+   candidates firing, 196 hits on the letter `a` alone, zero conclusions moved.** A
+   second test pins that the block is computed *after* ranking and after the sets are
+   assigned, so the inertness is structural and not merely current behaviour. A third
+   asserts the module mutates none of its inputs — a hint editing a record in place
+   would reach the evidence chain through the back door, since records are written out.
+2. **`calibration: pending`**, the same status semantics as the tiers.
+3. **Trigger rate observable.** `term_trigger_counts` reports per-term hits.
+4. **Recorded here**, and the T7/01F2 regression is the maintainer's to re-run.
+
+Three checks, all read-only, all after the sets are fixed:
+
+| | fires when |
+|---|---|
+| `structure_annotation_conflict` | the product name claims a fibre while a hit *description* describes baseplate/assembly machinery |
+| `fibre_chaperone_adjacency` | a fibre assembly chaperone within 2 CDS downstream, **same strand** |
+| `direction_conflict` | the candidate's own records disagree about direction |
+
+Two details worth stating rather than burying:
+
+* **The chaperone check follows the strand.** Fibre and chaperone are co-transcribed, so
+  for a reverse-strand gene the chaperone is at *lower* coordinates. Reading "downstream"
+  as "higher coordinate" would have silently missed every reverse-strand fibre; a test
+  pins both orientations and that an opposite-strand neighbour is ignored as a different
+  operon. The signal's own `action` text carries the maintainer's constraint — NOT a
+  family, and the C1 positional evidence for the same CDS must not be counted twice.
+* **The chaperone vocabulary is not new.** It points at
+  `stage4.direction_map.supports_structural_only`, which already holds the helper nouns.
+  Only the nine assembly-context words and four part names are new.
+
+`direction_conflict` is the cheap variant the maintainer said to include if it came in
+under 20 lines; it did, at 23 including the output structure. It is kept because it
+catches something distinct — a T record fighting a D record, which known issue #4 says
+the evidence model cannot express, since one representative per family cannot carry both
+readings while `stage3.af3_priority` treats exactly that conflict as a P1 trigger. **A
+test asserts it would NOT have caught gp16**, where D and S agreed and only the external
+structure disagreed, so the limitation cannot be forgotten and it is never mistaken for a
+substitute for the description check.
+
+On the synthetic probe genome the default vocabulary fires **zero** times. That says it is
+not trivially noisy and nothing more — the real rate needs the labelled strains, and
+`complex` is the term most likely to be pruned, since PDB titles say it constantly. It is
+in the list because the test round named it, not because it is known to discriminate.
+
+### 49. The merge question resolved, and the count I keep getting wrong (2026-11-21)
+
+The Biomni session diffed its own 1.2.2 package against `be5aaed` file by file and found
+it a strict subset: nothing to merge back, and `/mnt/results` now carries the repository
+build, so two 1.2.2 packages no longer coexist. `WORKFLOW.md`'s header said "Read from the
+code at `2cb9ed1`" after the code had moved on; it now names the version rather than a
+commit, so it cannot go stale the same way.
+
+And `presentation_signals` moves the top-level key count again, to **32 or 33**. That is
+the fourth value this one field has had in four commits (29, 31, 31-or-32, 32-or-33), and
+three of my four statements of it were wrong. `WORKFLOW.md` now declines to quote it and
+says to count it from a run — a number that changes every release is not documentation.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend
@@ -880,17 +957,11 @@ rounds are in flight. It is a decision for the maintainer, not a silent change.
   `All rights reserved` and the wheel metadata says `Proprietary`. That is the repository's
   current stated intent, so the bundle carries it; changing it later means re-cutting any
   bundle already distributed.
-- **P0-2 from the test round is not done, and needs a decision first.** The request: when
-  a structure or homolog hit *description* contains baseplate/complex/assembly words while
-  the product name says tail fiber, emit a consistency hint; and add a chaperone-adjacency
-  signal (a candidate immediately downstream of a "tail fiber assembly protein"). Both are
-  presentation-layer only and must not touch family counting. Neither is implementable
-  without a **new keyword list**, and a hint that fires too often is noise while one that
-  fires too rarely is useless — that is a vocabulary decision with benchmark implications,
-  so it is put to the maintainer rather than guessed. The cheaper variant that needs no
-  new vocabulary — surfacing an intra-candidate *direction* conflict — would not have
-  caught the measured gp16 case, where D and S agreed and only the external structure
-  disagreed.
+- **The presentation signals' vocabulary is unmeasured** (item 48). Nine
+  assembly-context words and four part names, from one measured case, firing zero times
+  on the synthetic probe. Being inert, a wrong vocabulary here costs attention rather
+  than correctness — but it needs the labelled strains before the word lists are worth
+  trusting or pruning.
 - **pharokka upstream, not this repository**: version 1.10.1's `input_commands.py` has an
   MMseqs2 version allowlist that omits v19 and raises `UnboundLocalError`; `pharokka
   install` reports a Zenodo 403 block page as an MD5 mismatch. Both worth an issue at

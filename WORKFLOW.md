@@ -1,6 +1,10 @@
 # The complete workflow, for review
 
-Read from the code at `2cb9ed1`, not from SKILL.md. Where the two disagree, §5 says so.
+Read from the code, not from SKILL.md. Where the two disagree, §5 says so.
+
+Current as of **`v1.2.3+linux`**. Revised 2026-11-21 against a Biomni test round, which
+corrected an attribution in §2 that was mine and wrong — the correction is quoted in
+place rather than edited away.
 
 Two halves that are deliberately separate: **what the agent does** (§1) and **what one
 run does inside the tool** (§2–§4). The split is the design — the agent is an operator,
@@ -208,11 +212,12 @@ run.
 
 ## 3. What a run leaves behind
 
-`run_result.json` carries, among its 31 or 32 top-level keys:
+`run_result.json` carries, among its top-level keys:
 
 ```
 versions              {package, rules, schema}   <- new; quote it when you report a number
 vocabulary            {mode, overridden}
+presentation_signals  hints for a human reader -- NEVER evidence; see §4a
 top_unresolved_candidates   CONDITIONAL -- see below
 primary_set
 rescue_set
@@ -225,8 +230,10 @@ run_flags             e.g. REMOTE_SUBMISSION_BLOCKED, STRUCTURAL_SCREEN_UNAVAILA
 ```
 
 `top_unresolved_candidates` is present only when the shortlist is empty or
-`completeness` is `limited`, so the top-level key count is **31 or 32**, not a fixed
-number. It is presentation-only: those CDS are not promoted to Rescue and are not counted
+`completeness` is `limited`, so the key count is **32 or 33** at `v1.2.3+linux` — not a
+fixed number, and not a number worth quoting: this document has stated it wrong three
+times (29, then 31, then 31-or-32, each true of a different commit). Count it from a run
+if you need it. It is presentation-only: those CDS are not promoted to Rescue and are not counted
 in any recall figure. Its absence carries no information `primary_set`, `rescue_set` and
 `completeness_assessment` do not already give. Making it always present with `null` would
 be the tidier contract and matches this project's preference for explicit states over
@@ -240,6 +247,37 @@ message has to be read before blame is assigned — the schema case means the to
 a record its own contract forbids, and the user's input is fine.
 
 ---
+
+## 4a. Presentation signals — hints, not evidence
+
+Added at `v1.2.3+linux`. Three checks run **after** ranking and after the candidate sets
+are fixed, so there is nothing downstream for them to influence:
+
+| signal | fires when |
+|---|---|
+| `structure_annotation_conflict` | the product name claims a fibre while a hit *description* describes baseplate or assembly machinery |
+| `fibre_chaperone_adjacency` | a fibre assembly chaperone sits within 2 CDS downstream **on the same strand** |
+| `direction_conflict` | the candidate's own records disagree — one says receptor binding, another says structural-only or non-RBP |
+
+They exist because of a false positive no evidence family could have caught: a protein
+annotated "tail fiber protein" whose 99.3%-identity homolog was *also* called "tail fiber
+protein", which a cryo-EM map showed to be a tube initiator. **Agreement between two
+readers of the same part name is not two independent lines of evidence about function** —
+but de-correlation collapses tools, not vocabularies, so both records stood and nothing
+in the output said why to doubt them.
+
+Four constraints, each enforced rather than promised:
+
+1. **Inert.** `tests/test_presentation_signals.py` fills the whole vocabulary with terms
+   matching everything — measured: 16 of 16 candidates firing, 196 hits on the letter `a`
+   alone — and asserts the pool, families, tiers, ranking and Primary/Rescue are
+   byte-identical. If that test can be made to fail, the block has escaped its layer.
+2. **`calibration: pending`**, the same status as the tiers: one measured case plus the
+   literature, no fitted trigger rate.
+3. **Trigger rate observable.** `term_trigger_counts` reports per-term hits, because a
+   hint firing on every candidate is noise and one that never fires is dead weight.
+   `complex` is the term to watch — PDB titles say it constantly.
+4. **No automatic downgrade.** A hint invites a human look. It never moves a tier.
 
 ## 4. Offline, unconditionally
 
@@ -297,6 +335,13 @@ This is the section to argue with.
 5. **`uninformative` dominates when searching PDB.** Titles are crystallographic
    descriptions, not functional annotations. A structural hit can be excellent and carry
    no functional word, so T rarely lifts a true RBP alone.
+
+15. **The presentation signals' vocabulary is unmeasured.** §4a. Nine assembly-context
+    words and four part names, from one measured case. On the synthetic probe genome the
+    default vocabulary fires **zero** times, which says it is not trivially noisy and
+    nothing more — the real rate needs the labelled strains. `complex` is the term most
+    likely to be pruned. Being inert, a wrong vocabulary here costs attention, not
+    correctness.
 
 ### Not implemented, and advertised as such
 

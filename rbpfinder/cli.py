@@ -20,6 +20,7 @@ from .providers import local_foldseek
 from . import stage2_remote
 from . import annotation as annotation_mod
 from . import capability_matrix as capmat
+from .output import presentation_signals as pres_signals
 from . import search_state as sstate
 from . import return_binding
 from . import uniprot_enrichment as uniprot
@@ -857,6 +858,15 @@ def run(args):
                                      "legacy_notice")}
     run_result["capability_matrix"] = [
         {k: v for k, v in row.items() if k != "note"} for row in cap_rows]
+
+    # ---- presentation signals: hints for a reader, computed LAST --------------
+    # Deliberately after ranking and after the candidate sets are fixed, so that it is
+    # structurally impossible for a hint to reach nomination, families, tiers or
+    # Primary/Rescue -- there is nothing left downstream for it to influence. The
+    # dormancy test fills the whole vocabulary with adversarial terms and asserts the
+    # pool, families, tiers and sets are unchanged.
+    run_result["presentation_signals"] = pres_signals.build(
+        run_result["candidates"], records_by_id, cds, rules, is_circular=is_circular)
 
     errors = schema_mod.validate(run_result, sch)
     if errors:

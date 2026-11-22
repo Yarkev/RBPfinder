@@ -28,6 +28,43 @@ from . import evidence_acquisition as evacq
 from .errors import CapabilityUnavailable, InputValidationError
 
 
+def _versions_block(rules, schema_path, run_flags):
+    """What produced this result, and whether the two numbers can be trusted together.
+
+    `package` comes from distribution metadata, frozen when `pip install` ran. `rules`
+    comes from the YAML on disk, read live. On an **editable** install -- which is what
+    this project recommends, and what the Biomni deployment uses -- `git checkout` moves
+    the YAML and leaves the metadata behind, so a run can report
+    `{"package": "1.2.5+linux", "rules": "1.2.7+linux"}` and be believed.
+
+    That hole defeats the whole point of recording versions, so the divergence is detected
+    here rather than left for a reader to notice. The code that runs IS the checked-out
+    code, so the run is not wrong and is not refused -- only the reported package number
+    is stale, and saying so is enough.
+    """
+    pkg = _package_version()
+    rules_v = rules.get("meta.version")
+    block = {"package": pkg, "rules": rules_v, "schema": schema_path.name}
+
+    if pkg == "0+unknown":
+        block["consistency"] = "not_installed"
+        block["note"] = ("running from a source tree that was never installed, so there "
+                         "is no release this result can be attributed to")
+        run_flags.append("PACKAGE_NOT_INSTALLED")
+    elif rules_v and pkg != rules_v:
+        block["consistency"] = "package_metadata_stale"
+        block["note"] = (
+            "the installed distribution reports %s while the rules on disk are %s. On an "
+            "editable install `git checkout` moves the files and not the metadata, so "
+            "`package` is stale -- re-run `pip install -e .` to make this result "
+            "attributable. The analysis itself used the checked-out code." % (pkg, rules_v)
+        )
+        run_flags.append("PACKAGE_METADATA_STALE")
+    else:
+        block["consistency"] = "ok"
+    return block
+
+
 def _package_version():
     """The installed distribution's version, or a value that says it is not installed.
 
@@ -744,9 +781,7 @@ def run(args):
         # could not be attributed to a release. `package` comes from the installed
         # distribution metadata, so it reads 0+unknown in an uninstalled source tree,
         # which is itself worth seeing in the output.
-        "versions": {"package": _package_version(),
-                     "rules": rules.get("meta.version"),
-                     "schema": schema_path.name},
+        "versions": _versions_block(rules, schema_path, run_flags),
         "stage2_local": stage2_prov,
         "stage3_local": stage3_prov,
         "stage2_remote": (remote.provenance() if remote else None),

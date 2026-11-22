@@ -86,23 +86,53 @@ export PATH="$BIN_DIR:$PATH"
 # --- 3. structure database + ProstT5 weights --------------------------------------
 # Restore from backup first (fast, survives an OOM rebuild); download only if neither the
 # live copy nor a backup exists. foldseek's own `databases` command assembles each one.
+#
+# The backup is a TARBALL, not a copied directory tree. This used `cp -a`, which fails on
+# a shared mount that does not support symlinks or utime -- reported from a real Biomni
+# sandbox, where it was the root cause of a backup that would not restore. A Foldseek
+# database contains symlinks, so the copy cannot be flattened either. Keeping a single
+# tar file on the shared mount sidesteps the mount's limitations entirely: the mount only
+# has to hold one regular file, and tar reconstructs the layout on local disk.
+#
+# A caveat worth stating because it is not obvious: a Foldseek database records its own
+# paths, so if you ever restore to a DIFFERENT directory than it was built in, renaming
+# with `mv` is not enough -- use `foldseek mvdb <old> <new>`, which rewrites the internal
+# references. This script restores to the same path it backs up from, so it does not need
+# that; a restore script that relocates does.
 restore_or_build() {
     name="$1"; dest="$2"; foldseek_db_name="$3"
     if [ -e "${dest}.dbtype" ] || [ -e "$dest" ]; then
         say "$name already present at $dest -- reusing"
         return
     fi
-    if [ -n "$RBP_BACKUP" ] && [ -d "$RBP_BACKUP/$name" ]; then
-        say "restoring $name from backup $RBP_BACKUP/$name"
-        cp -a "$RBP_BACKUP/$name/." "$(dirname "$dest")/"
-        return
+    archive="$RBP_BACKUP/$name.tar"
+    if [ -n "$RBP_BACKUP" ] && [ -f "$archive" ]; then
+        say "restoring $name from $archive"
+        tar -xf "$archive" -C "$(dirname "$dest")" || {
+            say "  restore FAILED -- leaving $archive alone and downloading instead"
+            rm -f "$(dirname "$dest")/$(basename "$dest")"* 2>/dev/null || true
+        }
+        if [ -e "${dest}.dbtype" ] || [ -e "$dest" ]; then
+            return
+        fi
+    elif [ -n "$RBP_BACKUP" ] && [ -d "$RBP_BACKUP/$name" ]; then
+        # A backup made by an older version of this script, as a directory tree.
+        say "restoring $name from legacy directory backup $RBP_BACKUP/$name"
+        say "  (if this fails, the mount may not support symlinks -- see the comment above)"
+        cp -a "$RBP_BACKUP/$name/." "$(dirname "$dest")/" && return
+        say "  legacy restore failed; downloading instead"
     fi
     say "downloading $name via foldseek databases $foldseek_db_name (this is the slow step)"
     "$BIN_DIR/foldseek" databases "$foldseek_db_name" "$dest" "$FS_DIR/tmp_$name"
     if [ -n "$RBP_BACKUP" ]; then
-        say "backing $name up to $RBP_BACKUP/$name"
-        mkdir -p "$RBP_BACKUP/$name"
-        cp -a "$(dirname "$dest")"/"$(basename "$dest")"* "$RBP_BACKUP/$name/"
+        say "backing $name up to $archive"
+        mkdir -p "$RBP_BACKUP"
+        # Written to a temporary name and moved into place, so an interrupted backup
+        # cannot leave a truncated archive that a later restore would trust.
+        tar -cf "$archive.partial" -C "$(dirname "$dest")" \
+            $(cd "$(dirname "$dest")" && ls -d "$(basename "$dest")"*) &&
+            mv "$archive.partial" "$archive" ||
+            say "  backup failed; the live database is fine, there is just no archive"
     fi
 }
 

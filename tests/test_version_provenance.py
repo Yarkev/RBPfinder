@@ -78,9 +78,61 @@ def run_result(tmp_path):
 
 def test_a_run_records_its_versions(run_result):
     v = run_result["versions"]
-    assert set(v) == {"package", "rules", "schema"}
+    assert {"package", "rules", "schema", "consistency"} <= set(v)
     assert v["rules"] == _rules_version()
     assert v["schema"].endswith(".json")
+
+
+def test_a_run_detects_a_stale_editable_install(monkeypatch, tmp_path):
+    """The hole this closes, reported from a real deployment: `package` comes from
+    distribution metadata frozen at install time, `rules` is read live from disk. On an
+    editable install -- which this project recommends -- `git checkout` moves the YAML and
+    leaves the metadata behind, so a run reported `package: 1.2.5` beside `rules: 1.2.7`
+    and was believed. Recording versions is pointless if the recorded number can be two
+    releases stale without saying so.
+    """
+    import json
+    from rbpfinder import cli
+    import test_end_to_end as e2e
+
+    monkeypatch.setattr(cli, "_package_version", lambda: "0.0.1+ancient")
+    gbk = tmp_path / "syn.gbk"
+    e2e._genbank(gbk)
+    out = tmp_path / "stale"
+    assert cli.main(["--genbank", str(gbk), "--phage-id", "SYN", "--out", str(out),
+                     "--no-local-stage2", "--quiet-progress"]) == 0
+    d = json.loads((out / "run_result.json").read_text())
+    assert d["versions"]["consistency"] == "package_metadata_stale"
+    assert "pip install -e ." in d["versions"]["note"]
+    # buried in JSON is not enough; it has to reach the printed flags
+    assert "PACKAGE_METADATA_STALE" in d["run_flags"]
+    # the analysis itself is not wrong, so the run must still succeed
+    assert d["primary_set"] is not None
+
+
+def test_a_run_says_when_it_is_not_installed_at_all(monkeypatch, tmp_path):
+    """`0+unknown` is a different state from staleness -- no release to attribute to,
+    rather than the wrong one."""
+    import json
+    from rbpfinder import cli
+    import test_end_to_end as e2e
+
+    monkeypatch.setattr(cli, "_package_version", lambda: "0+unknown")
+    gbk = tmp_path / "syn.gbk"
+    e2e._genbank(gbk)
+    out = tmp_path / "uninstalled"
+    assert cli.main(["--genbank", str(gbk), "--phage-id", "SYN", "--out", str(out),
+                     "--no-local-stage2", "--quiet-progress"]) == 0
+    d = json.loads((out / "run_result.json").read_text())
+    assert d["versions"]["consistency"] == "not_installed"
+    assert "PACKAGE_NOT_INSTALLED" in d["run_flags"]
+
+
+def test_a_consistent_install_is_not_flagged(run_result):
+    """The check must be silent when it should be, or it becomes noise people filter."""
+    if run_result["versions"]["package"] == _rules_version():
+        assert run_result["versions"]["consistency"] == "ok"
+        assert not [f for f in run_result["run_flags"] if f.startswith("PACKAGE_")]
 
 
 def test_the_recorded_package_version_is_honest_about_not_being_installed(run_result):

@@ -13,7 +13,7 @@ meta:
   # read "1.2.1-linux" while the package read "1.2.1+linux" -- close enough to look
   # right in a diff, different enough that `pip show` and a run's own citation disagreed,
   # and "-linux" is not even a valid PEP 440 local version.
-  version: "1.2.7+linux"
+  version: "1.2.8+linux"
   scope: "Caudoviricetes"
   optimises: "complete-recall@K"
   provenance: "reverse-engineered from SMA phage work (SOP_v0.md); not yet calibrated"

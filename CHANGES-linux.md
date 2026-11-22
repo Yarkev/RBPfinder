@@ -1303,6 +1303,72 @@ And what not to do, stated so it is not rediscovered: do **not** build the datab
 hand. `foldseek createdb` succeeds, the result has no taxonomy files, and the search dies
 at run time. `doctor` reports it `CONFIGURED, INVALID` on purpose — item F4's lesson.
 
+## v1.2.8+linux — three defects a real deployment found
+
+### 61. A run could report a version two releases stale (2026-11-22)
+
+**The hole in item 39, and it was in exactly the setup I recommend.** `versions.package`
+comes from distribution metadata, frozen when `pip install` ran; `versions.rules` is read
+live from the YAML. On an **editable** install `git checkout` moves the files and leaves
+the metadata behind, so a run reports:
+
+```
+{"package": "1.2.5+linux", "rules": "1.2.7+linux"}      <- and was believed
+```
+
+Reproduced here before fixing: install at one commit, change the files, run — two releases
+apart, no complaint. Item 39 existed so that a benchmark number could be attributed to a
+release; in the editable setup both this project's docs and the Biomni deployment use, the
+number silently goes stale on every checkout. Recording a version is worthless if the
+recorded value can be wrong without saying so.
+
+The two fields were already side by side, so the check is free. `versions.consistency` is
+now `ok`, `package_metadata_stale` (with the remedy in `note`) or `not_installed` —
+`0+unknown` being a different state, no release to attribute to rather than the wrong one
+— and each non-ok case appends a **run flag**, because a field buried in JSON is not
+something anyone reads. The run still succeeds: the code that executed *is* the
+checked-out code, so the analysis is right and only the reported number was stale.
+
+Four tests, including that a consistent install is **not** flagged — a check that fires
+when it should not becomes noise people filter out.
+
+### 62. A test was testing the machine, not the code (2026-11-22)
+
+`test_an_empty_nominated_pool_is_not_an_error` asserted that resolving Foldseek raises
+`CapabilityUnavailable`, relying on the ambient machine not having Foldseek installed. It
+failed on the Biomni platform, where `/workspace/bin` is always on PATH by design.
+
+Reported — correctly — as not a code defect. It is a **test** defect, and mine: a test
+whose result depends on what happens to be installed proves nothing either way. It now
+empties `PATH` and clears `RBPFINDER_FOLDSEEK` with `monkeypatch`, so the binary is
+genuinely unresolvable by construction. The suite was then run **both** with and without
+Foldseek on PATH — 244 passing in each — because fixing this by making it pass here would
+have repeated the original mistake in the other direction.
+
+### 63. The backup used `cp -a` on a mount that cannot take it (2026-11-22)
+
+`setup_biomni.sh` backed the structure databases up with `cp -a`, which failed on a shared
+mount with no symlink or `utime` support. That was the root cause of a backup that would
+not restore, found by someone actually relying on it — I had not hit it because my storage
+behaves differently, which is the whole value of someone else running the thing.
+
+A Foldseek database contains symlinks, so the copy cannot be flattened either. The backup
+is now a **single tar file** on the shared mount, which sidesteps the mount's limitations
+entirely: it only has to hold one regular file, and tar reconstructs the layout on local
+disk. Verified round-trip, symlink preserved. Written to `.partial` and moved into place,
+so an interrupted backup cannot leave a truncated archive a later restore would trust;
+directory backups from the older script are still restored, with the symlink caveat
+printed if it fails.
+
+One thing recorded that I did not know and would have got wrong: a Foldseek database
+records its own paths, so restoring to a **different** directory needs
+`foldseek mvdb <old> <new>` rather than `mv`. This script restores to the path it backed
+up from and so does not need it — but a relocating restore script does, and the deployment
+had already discovered that independently and built one, verified against the online copy
+(41 files, identical search results). That script is better evidence than anything I could
+reconstruct from a description; it belongs in `packaging/biomni/` if its author will share
+it.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend

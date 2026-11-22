@@ -110,7 +110,7 @@ def test_structure_search_refuses_when_nothing_carries_a_sequence(
 
 # ------------------------------- zero two: an empty pool stays a legitimate quiet zero
 
-def test_an_empty_nominated_pool_is_not_an_error(rules, tmp_path):
+def test_an_empty_nominated_pool_is_not_an_error(rules, tmp_path, monkeypatch):
     """The pool being empty is itself Stage 1's answer; structure search having nothing
     to do follows from it and must not be reported as a broken input.
 
@@ -118,10 +118,19 @@ def test_an_empty_nominated_pool_is_not_an_error(rules, tmp_path):
     error is what proves the input passed it -- that ordering is the point, since a
     refusal placed after capability resolution would never be seen on a machine without
     foldseek installed.
+
+    The ordering is asserted by making foldseek genuinely unresolvable, with an empty
+    PATH and the environment override cleared. An earlier version relied on the ambient
+    machine not having foldseek installed, and failed on the Biomni platform, where
+    `/workspace/bin` is always on PATH by design. A test whose result depends on what
+    happens to be installed is testing the machine, not the code.
     """
     from rbpfinder import stage3_local
     from rbpfinder.capability import FoldseekCapability
     from rbpfinder.errors import CapabilityUnavailable
+
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.delenv("RBPFINDER_FOLDSEEK", raising=False)
 
     gbk = tmp_path / "syn.gbk"
     e2e._genbank(gbk)

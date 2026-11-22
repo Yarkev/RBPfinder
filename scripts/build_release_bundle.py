@@ -87,6 +87,11 @@ NOT_SHIPPED = {
                             "decide what the analysis should do",
     "packaging/biomni/README.md": "the Biomni route installs from a git checkout via "
                                   "setup_biomni.sh, not from this bundle",
+    "packaging/biomni/GETTING-STARTED.zh.md":
+        "a walkthrough for the Biomni route, which this bundle is not -- a bundle user "
+        "installs with install_linux.sh/install_windows.ps1 and would be following the "
+        "wrong instructions. It is read from the repository, where it stays in step "
+        "with the code it describes",
     "packaging/biomni/setup_biomni.sh": "same: it clones and builds on the server, and "
                                         "downloads multi-GB databases. Shipping it inside "
                                         "a bundle installed by install_linux.sh would "

@@ -1,5 +1,8 @@
 # RBPfinder on Biomni
 
+> **第一次用？** 先读 [`GETTING-STARTED.zh.md`](GETTING-STARTED.zh.md) —— 中文、傻瓜式、
+> 带可直接粘贴的指令。这份 README 是给已经熟悉这个项目的人看的参考，不是上手教程。
+
 Running RBPfinder inside a Biomni hosted sandbox, with **local Foldseek structure
 search** so family-T evidence is computed on the machine — no AlphaFold step, no web
 handoff, nothing transmitted, and no tokens spent driving a website.

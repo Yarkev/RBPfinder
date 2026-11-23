@@ -1,5 +1,8 @@
 # RBPfinder（Biomni / Linux 版）傻瓜式上手
 
+> 想要 PDF 版？`python3 packaging/biomni/make_guide_pdf.py` 生成一份排版好的中文 PDF，
+> 内容是这份文档的精简版（安装 / 使用 / 输出），适合给第一次接触的人看。
+
 对应版本 **v1.2.8+linux**。权威内容在仓库里，这份文档随代码一起更新 —— 如果哪天它和
 `packaging/biomni/README.md` 冲突，以 README 和代码为准。
 

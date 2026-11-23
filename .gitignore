@@ -26,6 +26,8 @@ RELEASE.md
 # and lives in packaging/comparison/ so that this boundary stays absolute.
 benchmark/
 *.xlsx
+# Rendered documents are build artefacts; make_guide_pdf.py regenerates them.
+*.pdf
 settings.local.json
 
 # Editor / OS noise

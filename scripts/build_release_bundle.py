@@ -75,7 +75,9 @@ FORBIDDEN_NAMES = {
     "BIOMNI-HANDOFF.md", "CHANGES-linux.md",
 }
 FORBIDDEN_PREFIXES = ("MILESTONE_",)
-FORBIDDEN_SUFFIXES = ("_PREREGISTRATION.md", ".xlsx")
+# .pdf: a rendered document is a build artefact, like the bundle itself. The
+# generator and its source markdown are what live in the repository.
+FORBIDDEN_SUFFIXES = ("_PREREGISTRATION.md", ".xlsx", ".pdf")
 FORBIDDEN_DIRS = {"benchmark", "comparison", "__pycache__", ".pytest_cache"}
 
 # Under `packaging/` but deliberately not in the bundle, with the reason. Anything here
@@ -87,6 +89,10 @@ NOT_SHIPPED = {
                             "decide what the analysis should do",
     "packaging/biomni/README.md": "the Biomni route installs from a git checkout via "
                                   "setup_biomni.sh, not from this bundle",
+    "packaging/biomni/make_guide_pdf.py":
+        "builds the Chinese user guide PDF from the same material as "
+        "GETTING-STARTED.zh.md. A maintainer tool for the Biomni route, and it needs "
+        "reportlab plus a CJK font that a bundle user has no reason to install",
     "packaging/biomni/GETTING-STARTED.zh.md":
         "a walkthrough for the Biomni route, which this bundle is not -- a bundle user "
         "installs with install_linux.sh/install_windows.ps1 and would be following the "

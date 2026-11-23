@@ -28,6 +28,7 @@ benchmark/
 *.xlsx
 # Rendered documents are build artefacts; make_guide_pdf.py regenerates them.
 *.pdf
+*.docx
 settings.local.json
 
 # Editor / OS noise

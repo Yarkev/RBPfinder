@@ -151,3 +151,49 @@ def test_a_mismatched_sequence_is_refused_not_misattributed(tmp_path):
     lifted = _candidate(after, dark["cds_id"])
     # refused: the family must NOT appear on a binding mismatch
     assert "T" not in lifted["independent_families"], lifted["independent_families"]
+
+
+# ------------------------------------------- the handoff must be actionable and honest
+
+def test_the_batch_carries_the_sequence_itself(tmp_path):
+    """A batch naming the proteins and the reason each is wanted, but not WHAT TO
+    SUBMIT, cannot be acted on from the file alone -- and the structure step is the one
+    the rules call mandatory for six triggers. HHPRED_BATCH had carried the sequence all
+    along; this one did not until 2026-11-25."""
+    import csv
+    gbk = tmp_path / "syn.gbk"
+    e2e._genbank(gbk)
+    out = tmp_path / "seqcol"
+    assert cli.main(["--genbank", str(gbk), "--phage-id", "RT", "--out", str(out),
+                     "--no-local-stage2", "--no-local-stage3", "--quiet-progress"]) == 0
+    rows = list(csv.DictReader(
+        (out / "AF3_MONOMER_BATCH.tsv").open(encoding="utf-8"), delimiter="\t"))
+    assert rows, "no candidates requested, so this proves nothing"
+    assert all(r["sequence"] for r in rows)
+    # the checksum stays beside it: that is what binds a returned file to its request
+    assert all(r["sequence_sha256"] for r in rows)
+
+
+def test_the_rules_do_not_require_a_hosted_predictor(rules):
+    """`return_via: foldseek` means what returns is a structure searched with Foldseek,
+    so anything producing a PDB/mmCIF satisfies the step. Hardcoding a service name
+    obscured that, and a hosted predictor would break this build's central promise."""
+    af = rules.get("evidence_acquisition.providers.alphafold")
+    assert "default" in af["service_name"], af["service_name"]
+    assert af["return_via"] == "foldseek"
+    local = af["local_predictors_satisfy_this"]
+    assert {"esmfold", "colabfold_or_af2", "boltz_or_chai", "af3"} <= set(local)
+
+
+def test_the_transmission_cost_is_stated_where_the_handoff_happens():
+    """The user chose this build because sequences never leave the machine. An agent
+    handing over the batch must say that a hosted predictor breaks that, before they act
+    rather than after."""
+    import pathlib as _p
+    root = _p.Path(__file__).resolve().parent.parent
+    skill = (root / "packaging" / "biomni" / "skill" / "rbpfinder"
+             / "SKILL.md").read_text(encoding="utf-8")
+    assert "breaks the promise" in skill
+    assert "local predictor satisfies the step" in skill
+    yaml_text = (root / "rules" / "decision_rules.yaml").read_text(encoding="utf-8")
+    assert "TRANSMISSION WARNING" in yaml_text

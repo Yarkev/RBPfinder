@@ -117,7 +117,15 @@ functional annotation**. A database of part names raises how well you looked, no
 you concluded. See §5.1 and §5.2.
 
 Stage 3 is family T, from local Foldseek with ProstT5 (sequence → 3Di, no structure
-prediction step, nothing transmitted). Default scope is the **nominated pool**;
+prediction step, nothing transmitted).
+
+There is a **second** structural route, and it is manual: `AF3_MONOMER_BATCH.tsv` lists
+candidates a predicted structure would arbitrate, a person runs a predictor, the structure
+goes to Foldseek, and the result returns as `foldseek_json` — the same kind Stage 3 writes,
+so both arms enter through one path. The contract is **predictor-agnostic**: nothing cares
+which predictor made the structure, so a local one satisfies it with no transmission. That
+matters, because the hosted default would break this build's central promise and nothing
+said so until 2026-11-25. Default scope is the **nominated pool**;
 `--foldseek-all-cds` widens it to every CDS, which is what makes audit A2 runnable.
 
 On the ProstT5 route `probability_pct` is always null — a sequence has no backbone

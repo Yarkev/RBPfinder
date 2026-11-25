@@ -108,6 +108,10 @@ def manifest_rows(ranked, by_id, records_by_id, rules, k_default):
             "candidate_id": cand["cds_id"],
             "priority": prio,
             "trigger": trigger,
+            # The sequence itself, not only a checksum of it: a batch nobody can
+            # submit from is not a handoff. The checksum stays beside it because it is
+            # what binds a returned file to the request it answers.
+            "sequence": seq,
             "sequence_sha256": hashlib.sha256(seq.encode()).hexdigest() if seq else "",
             "length_aa": rec["length_aa"],
             "requested_reason": reason,

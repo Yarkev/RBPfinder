@@ -1598,9 +1598,14 @@ stage3:
     batch:
       breakpoint: AF3_MONOMER_BATCH
       auto_submit: false
-      manifest_fields: [candidate_id, priority, trigger, sequence_sha256, length_aa,
-                        requested_reason]
-      rule: "emit the request list only; a human runs AF3 and returns the models"
+      # `sequence` added 2026-11-25. Without it the batch named each protein and why it
+      # was wanted but not WHAT TO SUBMIT, so the handoff could not be acted on from the
+      # file alone -- HHPRED_BATCH had carried the sequence all along. It was deferred
+      # because two scripts read this file by column name; neither exists in this
+      # repository, and adding a column is backward compatible for a name-based reader.
+      manifest_fields: [candidate_id, priority, trigger, sequence, sequence_sha256,
+                        length_aa, requested_reason]
+      rule: "emit the request list only; a human runs the predictor and returns the models"
 
   multimer:
     stage: 3d
@@ -3881,8 +3886,32 @@ evidence_acquisition:
       supported_modes: [MANUAL_HANDOFF, SKIP]
       default_mode: MANUAL_HANDOFF
       why_default: >
-        AlphaFold Server is an interactive service with per-account daily limits. There
-        is no submission API to automate against, and the account is the user's.
+        No submission API to automate against, and the predictor is the user's to
+        choose and to run. The tool writes the request; it never transmits.
+      # PREDICTOR-AGNOSTIC BY CONTRACT, which the hardcoded service name obscured.
+      # `return_via: foldseek` means what comes back is a STRUCTURE, searched with
+      # Foldseek and returned as `foldseek_json` -- the same kind local Stage 3 writes.
+      # Anything that outputs a PDB/mmCIF satisfies this step; no code cares which
+      # predictor made it.
+      #
+      # TRANSMISSION WARNING, which nothing stated until 2026-11-25. This build refuses
+      # every remote submission with exit 2 and promises sequences never leave the
+      # machine. A HOSTED predictor breaks that promise. The tool is not the one
+      # transmitting -- the user is -- and they must be told before they do it, not
+      # after. An agent handing this batch over says so in as many words.
+      local_predictors_satisfy_this:
+        note: >
+          Options, roughly by how little they need. Verify current licence and
+          weight-availability terms yourself; they move.
+        esmfold: single sequence, no MSA; the lightest fully-offline option
+        colabfold_or_af2: >
+          mature and accurate, but needs a GPU and either local MSA databases
+          (hundreds of GB) or ColabFold's remote MSA service -- and that service
+          transmits the sequence, which defeats running the predictor locally
+        boltz_or_chai: AF3-class open models with freely downloadable weights
+        af3: >
+          code is open; weights need an application to DeepMind for non-commercial
+          use, plus a large GPU. Possible locally, not freely deployable
       manual_batch_file: AF3_MONOMER_BATCH.tsv
       # Written by `evidence/af3_priority.manifest_rows`, not by the plan. Its columns
       # are read by scripts/benchmark_stage2_48.py and scripts/m7c_pipeline_metrics.py,
@@ -3890,7 +3919,8 @@ evidence_acquisition:
       # the plan records the path and keeps its hands off the file -- relying on write
       # ordering to decide which version survives is not a design.
       batch_writer: external
-      service_name: AlphaFold Server
+      # A default, not a requirement -- see local_predictors_satisfy_this above.
+      service_name: "a structure predictor (default: AlphaFold Server)"
       service_url: https://alphafoldserver.com/
       # Honest, and currently a gap: `providers/local_files.KINDS` has no AF3 kind, so a
       # returned structure cannot be imported directly. It becomes evidence only after

@@ -360,10 +360,37 @@ covered **inside the run** when local Foldseek is configured — do not send the
 external Foldseek or AlphaFold service for it.
 
 The external loop remains for executors this build does not bundle: HHpred, InterProScan
-and AlphaFold. Read the batch files the run wrote (`HHPRED_BATCH.tsv`,
+and structure prediction. Read the batch files the run wrote (`HHPRED_BATCH.tsv`,
 `INTERPRO_BATCH.tsv`, `AF3_MONOMER_BATCH.tsv`), give them to the user to run, import the
 returned raw results, reclassify with `--stage2-manifest`, and repeat until the candidate
 set is resolved or nothing further is findable. The user submits; you never do.
+
+### Structure prediction: say what submitting costs, and that it need not be remote
+
+**Do not hand over `AF3_MONOMER_BATCH.tsv` without saying this.** This build refuses every
+remote submission with exit code 2 and promises sequences never leave the machine. Sending
+that batch to a **hosted** predictor breaks the promise. The tool is not the one
+transmitting — the user is — and they chose this build *because* of that promise, so they
+have to be told before they act, not after.
+
+**It does not have to be a hosted service.** What the pipeline needs is a structure; the
+structure goes to Foldseek; the Foldseek result comes back as `foldseek_json` — the same
+kind local Stage 3 writes. **Nothing in the tool cares which predictor produced it.** So a
+local predictor satisfies the step with no transmission and no change to anything here.
+`evidence_acquisition.providers.alphafold.local_predictors_satisfy_this` in the rules
+lists the options and what each one needs; the short version is that ESMFold needs no MSA
+and is the lightest fully-offline choice, while ColabFold/AF2 want a GPU and either large
+local MSA databases or a remote MSA service — and that remote service transmits the
+sequence, which defeats the point.
+
+The batch file carries the sequence itself, so it can be turned into FASTA and fed to any
+predictor without going back to the run output for anything.
+
+**Do not treat this step as optional noise.** Family T is the only family that can speak
+for a dark-matter CDS, and `stage3.af3_priority.P1_mandatory` calls structure "the
+arbiter" for six triggers — including an evidence conflict, where one record supports
+receptor binding and another supports a non-RBP identity. Skipping it on a poorly
+annotated genome is where this tool is weakest.
 
 ## Scientific invariants
 

@@ -3899,6 +3899,40 @@ evidence_acquisition:
       # machine. A HOSTED predictor breaks that promise. The tool is not the one
       # transmitting -- the user is -- and they must be told before they do it, not
       # after. An agent handing this batch over says so in as many words.
+      # EXECUTOR TIERS, decided by the maintainer 2026-11-25. Until then the rules knew
+      # only "the tool never transmits", which left no way to describe a destination the
+      # user trusts but the tool does not run on.
+      execution_tiers:
+        public_web_service:
+          allowed: false
+          why: >
+            EBI, AlphaFold Server and the like. Refused with exit 2 before any ingest,
+            unconditionally, on every platform. This is the build's central promise and
+            nothing below weakens it.
+        user_local:
+          allowed: true
+          how: the batch file; the user runs a predictor on their own machine
+        session_trusted_hpc:
+          allowed: true
+          default: false
+          requires: explicit user confirmation in the session, every time
+          why: >
+            A compute cluster the session already trusts is not a public web service,
+            and on such a platform the agent can submit directly. The sequence does
+            leave the local machine, so this is a POLICY choice the user makes, not a
+            capability the tool assumes. It is never the default and never silent.
+          must_record: >
+            A run that used this tier records it, so that "the destination was trusted"
+            remains checkable afterwards rather than being a claim made at the time.
+          scope: candidates_only
+          scope_why: >
+            Fold the shortlist, not the genome. Genome-wide folding is hours of cluster
+            time for a question the pipeline does not ask on this route -- and it would
+            NOT lift the A2 ceiling, which was measured 2026-11-25: 12 of 12 CDS given
+            imported structural evidence, A2 still `not_executable_due_to_missing_
+            genomewide_T_or_M`, because the probe reads the local search's provenance
+            and never the imported records.
+
       local_predictors_satisfy_this:
         note: >
           Options, roughly by how little they need. Verify current licence and

@@ -373,6 +373,67 @@ that batch to a **hosted** predictor breaks the promise. The tool is not the one
 transmitting — the user is — and they chose this build *because* of that promise, so they
 have to be told before they act, not after.
 
+### Where you may send it: three tiers
+
+Decided by the maintainer, 2026-11-25. Read this before offering any route.
+
+| tier | allowed | how |
+|---|---|---|
+| **public web service** | **never** | EBI, AlphaFold Server and the like. Refused with exit 2 before any ingest, on every platform. Do not offer it, do not work around it. |
+| **the user's own machine** | yes | hand over the batch file; they run a predictor locally |
+| **a session-trusted HPC cluster** | yes, **never by default** | you may submit directly — but **ask first, every time**, and say that the sequence leaves this machine |
+
+The third tier is the one to get right. A cluster the session already trusts is not a
+public web service, so submitting there is a **policy** choice the user makes rather than
+a capability you may assume. Three rules, and none of them bend:
+
+1. **Ask every run.** Not once per session, not implied by a previous yes.
+2. **Say what leaves.** The sequences go to the cluster. The user chose this build
+   because they do not leave; they are entitled to decide that again each time.
+3. **Record it.** State in your report that this run used the HPC tier, so "the
+   destination was trusted" stays checkable afterwards instead of being a claim made in
+   the moment and then lost.
+
+### Fold the shortlist, not the genome
+
+**Candidates only.** Genome-wide folding is hours of cluster time for a question this
+route does not ask, and it does **not** lift the A2 completeness ceiling — measured
+2026-11-25: with imported structural evidence for 12 of 12 CDS, A2 still reported
+`not_executable_due_to_missing_genomewide_T_or_M`, because the probe reads the local
+search's own provenance and never the imported records. If someone proposes genome-wide
+folding to resolve A2, that is the measurement to point at.
+
+Submit as **one batch, not one job per protein**, and prefer the fuller MSA database tier
+for evidence you intend to keep — MSA depth drives fold quality, and fibre proteins with
+long repeats are where it shows.
+
+### Family T is still ONE family, whichever route produced it
+
+A ProstT5 hit and a predicted-structure hit **collapse to the same T**. De-correlation
+counts families, never tools, so a second structural route adds confidence in a reading —
+it does not add a vote. Measured: two T records, same `families=G,T`, same tier. Never
+report them as two independent lines of evidence.
+
+What the run now records, so a number stays attributable:
+
+```
+family_provenance   {"G": "c1_module_position", "T": "foldseek_structure"}
+structure_query     "backbone_structure"   a real structure was searched
+                    "sequence_3di"         ProstT5 route -- probability_pct is ALWAYS
+                                           null here, and that is expected, not a failure
+                    "no_hits"              searched, nothing came back
+```
+
+Quote `structure_query` whenever you report family-T evidence. Without it a null
+`probability_pct` is ambiguous between "this route cannot produce one" and "the search
+found nothing", and once both routes are in play that ambiguity lands on some candidates
+and not others.
+
+**pLDDT and PAE are not evidence.** They describe how confident the predictor is in its
+own model, not whether the protein binds a receptor. The rules already forbid a geometry
+record from asserting receptor binding. Use low pLDDT to doubt a region before you search
+it; never to raise or lower a tier.
+
 **It does not have to be a hosted service.** What the pipeline needs is a structure; the
 structure goes to Foldseek; the Foldseek result comes back as `foldseek_json` — the same
 kind local Stage 3 writes. **Nothing in the tool cares which predictor produced it.** So a

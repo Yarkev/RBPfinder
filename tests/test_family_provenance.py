@@ -142,3 +142,41 @@ def test_the_geometry_record_does_not_infer_from_hits(rules):
     # and pLDDT may never assert receptor binding
     assert out["direction"] in ("supports_structural_only", "uninformative")
     assert out["is_heuristic"] is True
+
+
+# ---------------------------------------- the executor tiers, a maintainer decision
+
+def test_the_three_tiers_are_declared_with_hpc_off_by_default(rules):
+    """Added 2026-11-25. Until then the rules knew only "the tool never transmits",
+    which left no way to describe a destination the user trusts but the tool does not
+    run on -- so a platform that could submit to a cluster had no sanctioned route and
+    no stated boundary either."""
+    tiers = rules.get("evidence_acquisition.providers.alphafold.execution_tiers")
+    assert tiers["public_web_service"]["allowed"] is False
+    assert tiers["user_local"]["allowed"] is True
+    hpc = tiers["session_trusted_hpc"]
+    assert hpc["allowed"] is True
+    assert hpc["default"] is False, "the offline promise must not change silently"
+    assert "confirmation" in hpc["requires"]
+    assert hpc["must_record"], "a trusted destination has to stay checkable afterwards"
+
+
+def test_the_hpc_tier_is_scoped_to_candidates(rules):
+    """Fold the shortlist, not the genome: hours of cluster time for a question this
+    route does not ask, and it would not lift the A2 ceiling either."""
+    hpc = rules.get(
+        "evidence_acquisition.providers.alphafold.execution_tiers.session_trusted_hpc")
+    assert hpc["scope"] == "candidates_only"
+    assert "A2" in hpc["scope_why"]
+
+
+def test_the_skill_states_all_three_rules_for_the_hpc_tier():
+    import pathlib as _p
+    skill = (_p.Path(__file__).resolve().parent.parent / "packaging" / "biomni"
+             / "skill" / "rbpfinder" / "SKILL.md").read_text(encoding="utf-8")
+    assert "Ask every run" in skill
+    assert "Say what leaves" in skill
+    assert "Record it" in skill
+    # and the thing a second structural route most invites getting wrong
+    assert "still ONE family" in skill
+    assert "not add a vote" in skill

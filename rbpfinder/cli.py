@@ -593,6 +593,20 @@ def run(args):
                 "nomination_channels": chans,
                 "regions": _regions(rec, records),
                 "independent_families": fams,
+                # WHICH backend earned each family. `independent_families` says a family
+                # counted; it does not say what produced it, and with more than one route
+                # to the same family that is the difference between a comparable number
+                # and an unattributable one. Family T has two routes -- a ProstT5
+                # sequence query, where Foldseek cannot compute a probability at all, and
+                # a real structure, where it can -- so a consumer reading a null
+                # `probability_pct` needs `structure_query` to know which it is looking
+                # at. Representatives only: these are the records that counted.
+                "family_provenance": {
+                    r["family"]: r["tool"] for r in records
+                    if r.get("counts_as_independent")},
+                "structure_query": next(
+                    (r.get("structure_query") for r in records
+                     if r["family"] == "T" and r.get("counts_as_independent")), None),
                 "tier_r": t["tier_r"],
                 "tier_e": t["tier_e"],
                 "protein_role": role,

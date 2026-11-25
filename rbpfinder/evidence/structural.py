@@ -55,11 +55,39 @@ def consensus(hits, rules):
             "n_functional_hits": sum(1 for h in hits if h["database"] in func_dbs)}
 
 
+def query_kind(hits):
+    """What the Foldseek query was, read off the hits rather than claimed.
+
+    Two routes produce a family-T record and they are not interchangeable:
+
+      * ProstT5 -- a SEQUENCE is translated to 3Di and searched. There are no backbone
+        coordinates, so Foldseek cannot compute a probability at all and
+        `probability_pct` is null for every hit. That is the expected state, not a
+        failed search.
+      * a predicted or experimental STRUCTURE is searched directly. Probabilities are
+        real numbers.
+
+    A consumer that sees a null `probability_pct` has to know which of those it is
+    looking at, and until 2026-11-25 nothing in the output said. Mixing the routes
+    across a run -- which is exactly what adding a structure predictor does -- then
+    makes any assumption about that field quietly wrong.
+
+    Derived from the data instead of declared, because a manifest row can come from
+    either route and a claim in it would be unverifiable.
+    """
+    if not hits:
+        return "no_hits"
+    return ("backbone_structure"
+            if any(h.get("probability") is not None for h in hits)
+            else "sequence_3di")
+
+
 def build(rec, hits, rules, provider_id):
     """One T-family record plus the consensus table. Absence is stated, not omitted."""
     if not hits:
         return {
             "family": "T", "tool": provider_id, "region": _full_region(rec),
+            "structure_query": query_kind(hits),
             "direction": "uninformative", "strength": "weak",
             "not_run": True,
             "raw": {"hit_description": "no structural search result available"},
@@ -71,6 +99,7 @@ def build(rec, hits, rules, provider_id):
         apparatus_dbs = ", ".join(sorted({h["database"] for h in hits}))
         return {
             "family": "T", "tool": provider_id, "region": _full_region(rec),
+            "structure_query": query_kind(hits),
             "direction": "uninformative", "strength": "weak",
             "raw": {"hit_description":
                     "structural hits only in uncharacterised model databases (%s); "
@@ -103,6 +132,9 @@ def build(rec, hits, rules, provider_id):
     strong = (cat == terms.POSITIVE and counts.get(terms.POSITIVE, 0) >= 3)
     return {
         "family": "T", "tool": provider_id, "region": region,
+        # Beside `probability_pct` on purpose: this is the field that says whether a
+        # null there means "this route cannot produce one" or "the search found nothing".
+        "structure_query": query_kind(hits),
         "direction": terms.direction_for(cat),
         "strength": "strong" if strong else "moderate",
         "raw": {
@@ -127,6 +159,9 @@ def geometry_record(rec, geom, rules, provider_id):
     shape = "fibrous" if (rg is not None and rg >= thr) else "compact"
     return {
         "family": "T", "tool": provider_id, "region": _full_region(rec),
+        # geometry comes FROM a predicted structure by definition, so there is nothing
+        # to infer here -- unlike build(), which reads it off the hits.
+        "structure_query": "backbone_structure",
         # geometry can describe a shape; it may never assert receptor binding
         "direction": "supports_structural_only" if shape == "fibrous" else "uninformative",
         "strength": "weak",

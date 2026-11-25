@@ -371,21 +371,107 @@ C.push(p("要区分两种情况 —— **证据不够**（某几类证据根本�
 C.push(gap());
 
 // ---------------------------------------------------------------- 06
-C.push(h("06｜第一次使用与排查", HeadingLevel.HEADING_1));
+// ---------------------------------------------------------------- 06  install
+C.push(h("06｜怎么安装", HeadingLevel.HEADING_1));
+C.push(p("**绝大多数步骤由 Biomni 完成**，你只需要发一段话、然后在一个地方点确认。"));
 
-C.push(h("技能「已启用」≠ 运行环境已齐全", HeadingLevel.HEADING_2));
-C.push(...figure("image2.png", "图 2｜技能界面。Enabled 只表示技能已启用。", 300));
-C.push(p("技能文件、工具环境、数据库是**三件不同的东西**。开场先发这段："));
-C.push(block([
-  "我想使用 rbpfinder。请先检查技能是否启用、工具和数据库是否可用。",
-  "如果需要部署，请参考官方仓库：https://github.com/Yarkev/RBPfinder",
-  "先说明缺少什么、需要下载多少，以及能否复用现有备份。",
+C.push(h("先理解一件事：要装的是三样东西", HeadingLevel.HEADING_2));
+C.push(table(["装什么", "是什么", "谁来装"], [
+  ["**技能包**", "告诉 Biomni「该怎么用这个工具」的说明书。", "Biomni"],
+  ["**工具本体**", "真正做判断的程序。", "Biomni"],
+  ["**数据库**", "用来比对的参考资料。第一次要下载，**几 GB 起**。", "Biomni（下载较慢）"],
+], [20, 56, 24]));
+C.push(callout("这三样是分开的", [
+  "技能栏里显示「已启用」，**只说明说明书到位了**，不代表程序和数据库已经装好。",
+  "所以装完一定要做下面的「第三步：确认真的能用」。",
 ]));
-C.push(...figure("image3.png",
-                 "图 3｜更新卡片。出现时按提示确认保存 —— 仅复制文件不等于完成注册。", 300));
-C.push(...figure("image4.png", "图 4｜环境检查说明。它描述的是当时的环境。", 390));
+C.push(...figure("image2.png", "图 2｜技能界面。Enabled 只表示技能已启用。", 300));
 
-C.push(h("常见情况", HeadingLevel.HEADING_2));
+C.push(h("第一步：判断你是哪种情况", HeadingLevel.HEADING_2));
+C.push(table(["你的情况", "发哪一段"], [
+  ["**全新环境**，之前没装过", "下面的 A"],
+  ["**已经装过**，只是想更新到新版本", "下面的 B"],
+  ["**之前能用，现在报错说找不到工具或数据库**",
+   "机器可能被重建了 —— 发下面的 C"],
+], [44, 56]));
+C.push(note("不确定是哪种？直接发 A，Biomni 会先检查现状，已经装好的部分它会跳过。"));
+
+C.push(h("第二步：把对应的话发给 Biomni", HeadingLevel.HEADING_2));
+
+C.push(p("**A. 全新环境**", { after: 60 }));
+C.push(block([
+  "https://github.com/Yarkev/RBPfinder 这是一个 skill，请装到这台沙箱上。",
+  "克隆后读 packaging/biomni/README.md 按步骤做，特别注意这三节：",
+  "  - \"Copying the files is NOT registration\"",
+  "  - \"When the Foldseek CDN refuses you\"",
+  "  - \"2a. Verify the deployment\"",
+  "装之前先告诉我：需要下载多少数据、大概多久。",
+]));
+C.push(note("最后一句是给你自己留的 —— 数据库动辄几 GB，先知道要等多久比较好。"));
+
+C.push(p("**B. 更新到新版本**", { before: 120, after: 60 }));
+C.push(block([
+  "请把 RBPfinder 更新到最新版并重新部署 skill。",
+  "代码和 skill 必须同时更新，不能只动一个。",
+  "更新后请走平台注册流程生成更新卡片，我来确认。",
+  "最后跑一次任意基因组，报告 run_result.json 的 versions 字段。",
+]));
+C.push(note("「代码和 skill 必须同时更新」要写进去：只更新说明书而程序还是旧的，"
+            + "Biomni 会按新说明书去用一个旧程序，然后报错。"));
+
+C.push(p("**C. 机器被重建了**", { before: 120, after: 60 }));
+C.push(block([
+  "这台机器像是被重建了，请恢复 RBPfinder 环境。",
+  "如果共享存储上有数据库备份，请从备份恢复，不要重新下载。",
+  "恢复后重新部署并注册 skill，最后做一次环境检查。",
+]));
+C.push(note("第二句能省掉几 GB 的重复下载 —— 有备份就别重下。"));
+
+C.push(h("第三步：确认真的能用（这步别省）", HeadingLevel.HEADING_2));
+C.push(block([
+  "请做一次环境检查，并告诉我：",
+  "1. 技能是否已注册、出现在技能栏？",
+  "2. 工具本体装好了吗？版本号是多少？",
+  "3. 数据库哪些可用、哪些缺？缺的会影响哪些结论？",
+  "4. 如果有缺的，是必须补，还是可以先接受受限结果？",
+]));
+C.push(p("第 3、4 问是重点。**缺数据库不会让它崩溃，而是让它悄悄少一类证据** —— "
+         + "结果看起来正常，只是比应该的更弱。问清楚比事后发现好。"));
+C.push(...figure("image4.png",
+                 "图 4｜环境检查的回答示例。它描述的是当时那台机器的状态。", 390));
+
+C.push(callout("只有一件事必须你本人做", [
+  "**平台注册的确认。**Biomni 把文件放好、检查通过之后，会弹出一张卡片让你保存。",
+  "**不点这一下，技能栏里就不会出现它** —— 这一步任何人都替你做不了。",
+]));
+C.push(...figure("image3.png", "图 3｜出现这张卡片时，按提示确认保存。", 300));
+
+C.push(h("给技术同事：实际命令", HeadingLevel.HEADING_2));
+C.push(p("如果你身边有人直接操作沙箱，完整步骤在仓库的 "
+         + "`packaging/biomni/README.md`。核心是三条："));
+C.push(block([
+  "# 1. 取代码",
+  "cd /workspace/rbpfinder_src && git fetch origin && git checkout main",
+  "",
+  "# 2. 装（editable，--force-reinstall 不能省）",
+  "source /workspace/rbpfinder.env",
+  "uv pip install --force-reinstall --no-deps -e /workspace/rbpfinder_src",
+  "",
+  "# 3. 确认装的是新代码，不是旧副本",
+  "python -c \"import rbpfinder,inspect;print(inspect.getsourcefile(rbpfinder))\"",
+], { mono: true }));
+C.push(note("第 3 条看着多余，但真踩过：一个非可编辑副本会遮蔽掉源码路径，"
+            + "换版本后跑的其实还是旧代码，而输出里没有任何迹象。"));
+C.push(gap());
+
+// ---------------------------------------------------------------- 07
+C.push(h("07｜装完之后的排查", HeadingLevel.HEADING_1));
+C.push(p("每次换会话或隔一段时间再用，先发这句确认环境还在："));
+C.push(block([
+  "我想使用 rbpfinder。请先检查技能是否启用、工具和数据库是否可用，",
+  "缺什么就告诉我，并说明会影响哪些结论。",
+]));
+C.push(gap(60));
 C.push(table(["遇到", "怎么办"], [
   ["**换了会话或机器**",
    "让 Biomni 重新检查。别默认数据库还在，也别直接认定必须全部重下 —— 有备份先评估复用。"],
@@ -398,7 +484,7 @@ C.push(table(["遇到", "怎么办"], [
 C.push(gap());
 
 // ---------------------------------------------------------------- 07
-C.push(h("07｜不该做的事", HeadingLevel.HEADING_1));
+C.push(h("08｜不该做的事", HeadingLevel.HEADING_1));
 C.push(table(["不要", "为什么"], [
   ["**不要为了让结果好看去改规则**", "为迁就答案而改动的阈值，不再是任何东西的证据。"],
   ["**不要让 AI 自己重新排名**",

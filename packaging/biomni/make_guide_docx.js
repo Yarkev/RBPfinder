@@ -1,64 +1,74 @@
 // Build the editable Chinese .docx user guide for RBPfinder (Biomni / Linux).
 //
-//     node packaging/biomni/make_guide_docx.js 使用指南.docx
+//     node packaging/biomni/make_guide_docx.js 使用指南.docx [图片目录]
 //
-// Same material as GETTING-STARTED.zh.md and make_guide_pdf.py, as a Word file someone
-// can edit. Real Heading1/2 styles WITH outlineLevel, so the navigation pane, the
-// outline view and a generated table of contents all work -- overriding `paragraph` in
-// a style replaces the built-in properties wholesale, and leaving outlineLevel out
-// produces headings that look right and are invisible to all three.
+// Structure and tone follow the maintainer's own rewrite (2026-11-25): get the reader
+// running first, give copy-pasteable prompts rather than commands, explain the jargon
+// instead of assuming it. The evidence-family section exists because users asked what
+// the letters mean -- they appear in every report and nothing had ever spelled them out.
+//
+// If an image directory is given it should hold image1..image4.png: the flowchart and
+// the three platform screenshots from the maintainer's edit. Without it the figures are
+// replaced by a note, so the document still builds.
 //
 // Needs the `docx` npm package. Update the version strings when the tool version moves.
 const fs = require("fs");
+const path = require("path");
 const {
-  Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
-  Table, TableRow, TableCell, WidthType, ShadingType, BorderStyle,
+  Document, Packer, Paragraph, TextRun, HeadingLevel, ImageRun, PageBreak,
+  Table, TableRow, TableCell, WidthType, ShadingType, BorderStyle, AlignmentType,
+  LineRuleType,
 } = require("docx");
 
-const HAN = "微软雅黑";          // present on Windows; Word substitutes sensibly elsewhere
-const MONO = "Consolas";        // ASCII-only blocks, where column alignment matters
-
+const HAN = "微软雅黑";
+const MONO = "Consolas";
 const ACCENT = "1D5C8A";
 const CODEBG = "F4F5F7";
 const OKBG = "EEF5EE";
 const WARNBG = "FDF4E3";
 const RULE = "D8D8D8";
+const PAGE_W = 9026;
 
-const PAGE_W = 9026;            // A4 usable width in DXA at 2.2cm margins
+const IMGDIR = process.argv[3] || path.join(__dirname, "guide-images");
 
 const NONE = { style: BorderStyle.NONE, size: 0, color: "auto" };
 const noBorders = { top: NONE, bottom: NONE, left: NONE, right: NONE };
 
+function bold(s) {
+  const out = [];
+  s.split(/(\*\*[^*]+\*\*)/).forEach((part) => {
+    if (!part) return;
+    if (part.startsWith("**") && part.endsWith("**")) out.push({ t: part.slice(2, -2), b: true });
+    else out.push({ t: part, b: false });
+  });
+  return out.length ? out : [{ t: s }];
+}
+
 function p(text, opts = {}) {
-  const { bold, size = 21, color = "1A1A1A", after = 120, before = 0, font = HAN } = opts;
-  const runs = Array.isArray(text) ? text : [{ t: text }];
+  const { size = 21, color = "1A1A1A", after = 120, before = 0, font = HAN } = opts;
   return new Paragraph({
-    spacing: { after, before, line: 300 },
-    children: runs.map((r) => new TextRun({
-      text: r.t, bold: r.b !== undefined ? r.b : bold, font,
-      size: r.size || size, color: r.color || color,
+    spacing: { after, before, line: 320 },
+    children: bold(text).map((r) => new TextRun({
+      text: r.t, bold: r.b, font, size, color,
     })),
   });
 }
 
-function h(text, level) {
-  return new Paragraph({ text, heading: level });
-}
+const note = (t) => p(t, { size: 18, color: "5C5C5C", before: 60 });
+const gap = (n = 160) => new Paragraph({ spacing: { after: n }, children: [] });
+const h = (text, level) => new Paragraph({ text, heading: level });
 
-// A shaded block. `mono` for pre-formatted ASCII where alignment carries meaning;
-// Chinese prompt text uses the body font, since it has no columns to keep.
 function block(lines, { mono = false, bg = CODEBG } = {}) {
   const rows = lines.map((line) => new TableRow({
     children: [new TableCell({
       width: { size: PAGE_W, type: WidthType.DXA },
       shading: { type: ShadingType.CLEAR, fill: bg, color: "auto" },
-      margins: { top: 20, bottom: 20, left: 160, right: 160 },
+      margins: { top: 25, bottom: 25, left: 170, right: 170 },
       borders: noBorders,
       children: [new Paragraph({
-        spacing: { after: 0, line: 260 },
+        spacing: { after: 0, line: 280 },
         children: [new TextRun({
           text: line || " ", font: mono ? MONO : HAN, size: mono ? 17 : 19,
-          color: "1A1A1A",
         })],
       })],
     })],
@@ -72,15 +82,13 @@ function block(lines, { mono = false, bg = CODEBG } = {}) {
 function table(header, rows, weights) {
   const total = weights.reduce((a, b) => a + b, 0);
   const widths = weights.map((w) => Math.round((w / total) * PAGE_W));
-  const cell = (txt, { head = false, w } = {}) => new TableCell({
+  const cell = (txt, head, w) => new TableCell({
     width: { size: w, type: WidthType.DXA },
-    shading: head
-      ? { type: ShadingType.CLEAR, fill: ACCENT, color: "auto" }
-      : undefined,
-    margins: { top: 60, bottom: 60, left: 110, right: 110 },
+    shading: head ? { type: ShadingType.CLEAR, fill: ACCENT, color: "auto" } : undefined,
+    margins: { top: 70, bottom: 70, left: 120, right: 120 },
     children: [new Paragraph({
-      spacing: { after: 0, line: 280 },
-      children: parseBold(txt).map((seg) => new TextRun({
+      spacing: { after: 0, line: 300 },
+      children: bold(txt).map((seg) => new TextRun({
         text: seg.t, bold: head || seg.b, font: HAN, size: 19,
         color: head ? "FFFFFF" : "1A1A1A",
       })),
@@ -88,10 +96,10 @@ function table(header, rows, weights) {
   });
   const body = [new TableRow({
     tableHeader: true,
-    children: header.map((txt, i) => cell(txt, { head: true, w: widths[i] })),
+    children: header.map((txt, i) => cell(txt, true, widths[i])),
   })];
   rows.forEach((r) => body.push(new TableRow({
-    children: r.map((txt, i) => cell(txt, { w: widths[i] })),
+    children: r.map((txt, i) => cell(txt, false, widths[i])),
   })));
   const line = { style: BorderStyle.SINGLE, size: 3, color: RULE };
   return new Table({
@@ -102,305 +110,323 @@ function table(header, rows, weights) {
   });
 }
 
-// **bold** -> runs, so table text can emphasise without hand-building runs each time
-function parseBold(s) {
-  const out = [];
-  s.split(/(\*\*[^*]+\*\*)/).forEach((part) => {
-    if (!part) return;
-    if (part.startsWith("**") && part.endsWith("**")) out.push({ t: part.slice(2, -2), b: true });
-    else out.push({ t: part, b: false });
+function callout(title, lines, bg = WARNBG) {
+  const rows = [[title]].concat(lines.map((l) => [l]));
+  return new Table({
+    columnWidths: [PAGE_W], width: { size: PAGE_W, type: WidthType.DXA },
+    borders: noBorders,
+    rows: rows.map((r, i) => new TableRow({
+      children: [new TableCell({
+        width: { size: PAGE_W, type: WidthType.DXA },
+        shading: { type: ShadingType.CLEAR, fill: bg, color: "auto" },
+        margins: { top: 50, bottom: 50, left: 170, right: 170 },
+        borders: noBorders,
+        children: [new Paragraph({
+          spacing: { after: 0, line: 300 },
+          children: bold(r[0]).map((s) => new TextRun({
+            text: s.t, bold: s.b || i === 0, font: HAN, size: 19,
+          })),
+        })],
+      })],
+    })),
   });
-  return out.length ? out : [{ t: s, b: false }];
 }
 
-const gap = (n = 160) => new Paragraph({ spacing: { after: n }, children: [] });
+// Figures from the maintainer's edit, kept rather than redrawn.
+// A tall figure placed after text gets clipped rather than flowed, so one that needs
+// most of a page is given its own. Measured the hard way: the 1024x1536 flowchart
+// rendered as a 15pt sliver showing only its bottom bar.
+function figure(file, caption, widthPt, ownPage) {
+  const full = path.join(IMGDIR, file);
+  if (!fs.existsSync(full)) {
+    return [p("［图：" + caption + " — 生成时未找到 " + file + "］",
+              { size: 18, color: "A04040" })];
+  }
+  const buf = fs.readFileSync(full);
+  // keep the aspect ratio of the source
+  const dim = pngSize(buf);
+  const w = widthPt || 430;
+  const hh = Math.round(w * (dim.h / dim.w));
+  const out = [];
+  if (ownPage) {
+    out.push(new Paragraph({ children: [new PageBreak()] }));
+  }
+  out.push(
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      // lineRule AUTO is load-bearing. The document default sets a fixed line height,
+      // which clamps an inline image to one line: the 1024x1536 flowchart rendered as a
+      // 15pt sliver showing only its bottom bar, while the extents inside the .docx were
+      // correct all along -- so checking the XML said nothing and only looking did.
+      spacing: { before: 120, after: 60, line: 240, lineRule: LineRuleType.AUTO },
+      children: [new ImageRun({ data: buf, type: "png",
+                                transformation: { width: w, height: hh } })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 160 },
+      children: [new TextRun({ text: caption, font: HAN, size: 17, color: "5C5C5C" })],
+    }));
+  return out;
+}
+
+function pngSize(buf) {
+  return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+}
 
 // ------------------------------------------------------------------ content
 
 const C = [];
 
 C.push(new Paragraph({ text: "RBPfinder 使用指南", heading: HeadingLevel.TITLE }));
-C.push(p([{ t: "Biomni / Linux 版  ·  v1.2.8+linux  ·  2026-11-23" }],
+C.push(p("Biomni / Linux 版 · 面向不写代码的使用者 · 对应 v1.2.10+linux",
          { size: 19, color: "5C5C5C", after: 40 }));
-C.push(p("从噬菌体基因组找出受体结合蛋白（RBP）候选",
-         { size: 19, color: "5C5C5C", after: 240 }));
+C.push(p("从噬菌体基因组里，找出值得优先做实验的受体结合蛋白（RBP）候选。",
+         { size: 19, color: "5C5C5C", after: 60 }));
+C.push(p("它帮你**缩小实验范围**，不替代实验确认。适用于有尾双链 DNA 噬菌体。",
+         { size: 19, color: "5C5C5C", after: 260 }));
 
-C.push(h("1. 它做什么", HeadingLevel.HEADING_1));
-C.push(p("给它一个已注释的噬菌体基因组，它输出一份按证据分层的受体结合蛋白候选清单：先测哪几个、"
-         + "哪几个是为保召回留着的、以及这份清单有多完整。"));
-C.push(table(["边界", "说明"], [
-  ["**不做注释**",
-   "注释是 Biomni 的活（pharokka / phold）。这是刻意分工 —— 如果它自己注释，注释工具升级"
-   + "就能悄悄改变分层结果，而没人会察觉。"],
-  ["**不联网**",
-   "所有远程提交路径都被拒绝（退出码 2，在读取任何序列之前）。序列不离开这台机器，"
-   + "没有开关可以打开。"],
-  ["**不保证找全**",
-   "证据不足时它输出 completeness: limited 并说明原因，而不是凑一份好看的清单。"
-   + "**这个状态是结果的一部分，必须读。**"],
-  ["**适用范围**",
-   "有尾双链 DNA 噬菌体（Caudoviricetes）。RNA / 单链 DNA / 丝状 / 无尾 / 古菌病毒"
-   + "不在验证范围内。"],
-], [16, 84]));
-C.push(gap());
+// ---------------------------------------------------------------- 01
+C.push(h("01｜先跑起来", HeadingLevel.HEADING_1));
+C.push(p("三步，不需要先学任何命令。"));
 
-C.push(h("2. 安装", HeadingLevel.HEADING_1));
-C.push(p("先判断你是哪种情况 —— 三种的指令完全不同。把对应的那段话直接发给 Biomni。"));
+C.push(h("第一步：上传基因组文件", HeadingLevel.HEADING_2));
+C.push(table(["你手里的文件", "你需要做什么"], [
+  ["**DNA FASTA**（.fa / .fasta / .fna）",
+   "直接上传，并说明「这是未注释基因组」。Biomni 会先做注释。"],
+  ["**GenBank**（.gb / .gbk）",
+   "直接上传。Biomni 会检查里面有没有基因注释和蛋白序列；合格就直接用。"],
+], [34, 66]));
+C.push(note("不要只改文件后缀，也不要把单独的蛋白 FASTA 当基因组上传。"));
 
-C.push(h("情况 A：全新沙箱", HeadingLevel.HEADING_2));
+C.push(h("第二步：把下面这段话发给 Biomni", HeadingLevel.HEADING_2));
 C.push(block([
-  "https://github.com/Yarkev/RBPfinder 这是一个 skill，装到这台沙箱上。",
-  "克隆后读 packaging/biomni/README.md 按步骤做，特别注意这三节：",
-  " - \"Copying the files is NOT registration\"",
-  " - \"When the Foldseek CDN refuses you\"",
-  " - \"2a. Verify the deployment\"",
+  "请调用 rbpfinder skill，分析我上传的「我的基因组.fasta」。",
+  "这是未注释的噬菌体 DNA 基因组；宿主未知，是否环状也不确定。",
+  "先用 fast 路线；若建议改用 accurate，请先说明理由与额外耗时。",
+  "先检查环境和文件；如需安装或下载大型资源，请先告诉我。",
+  "请给出 Primary、Rescue，并用中文解释结果限制。",
+  "不要把序列提交到外部在线分析服务。",
 ]));
-C.push(p("耗时主要在下载：结构库约 6.5 GB、ProstT5 权重约 2.3 GB。",
-         { size: 18, color: "5C5C5C", before: 100 }));
+C.push(note("宿主和环状信息如果知道，直接替换掉「未知／不确定」——但不要为了填满而猜。"));
 
-C.push(h("情况 B：沙箱已配好，只更新版本", HeadingLevel.HEADING_2));
-C.push(block([
-  "把 RBPfinder 更新到最新版并重新部署 skill。",
-  "",
-  "cd /workspace/rbpfinder_src && git fetch origin && git checkout main",
-  "source /workspace/rbpfinder.env",
-  "uv pip install --force-reinstall --no-deps -e /workspace/rbpfinder_src",
-  "",
-  "然后重新部署 skill 包，过 check_skill，并走平台注册流程生成更新卡片。",
-  "最后跑一次任意基因组，报告 run_result.json 的 versions 字段。",
-]));
-
-C.push(h("情况 C：机器被重建了（OOM / delete）", HeadingLevel.HEADING_2));
-C.push(block([
-  "这台机器被重建了，恢复 RBPfinder 环境。",
-  "/shared 上有结构库和 pharokka 库的 tarball 备份，用恢复脚本从那里恢复 ——",
-  "不要去跑 foldseek databases，那个 CDN 对本机 IP 限流。",
-  "然后 checkout main、重装、重新部署并注册 skill，最后 rbpfinder doctor。",
-]));
-C.push(gap(120));
-
-C.push(table(["安装时有两个坑，每次都会遇到", ""], [
-  ["**① 复制文件不等于注册**",
-   "把 SKILL.md 复制到位、check_skill 通过 —— 技能栏里还是看不到它。注册是独立的平台流程："
-   + "agent 生成一张预览卡片，**你必须确认保存**，之后才会出现在技能栏。"],
-  ["**② 更新时 --force-reinstall 不能省**",
-   "可编辑安装下 git checkout 只换文件、不换安装元数据，所以运行会报出一个过期的版本号。"],
-], [30, 70]));
+C.push(h("第三步：只先看三个问题", HeadingLevel.HEADING_2));
+C.push(table(["你想知道", "看哪里"], [
+  ["**优先验证谁？**", "Primary（优先候选）"],
+  ["**还有哪些值得补？**", "Rescue（补充候选）"],
+  ["**这次有什么没查清？**", "完整性与限制说明"],
+], [34, 66]));
 C.push(gap());
 
-C.push(h("3. 验证装好了（别跳过）", HeadingLevel.HEADING_1));
-C.push(block(["rbpfinder doctor"], { mono: true }));
-C.push(p("四项核心应该是 AVAILABLE：rules、schema、Local Stage 2、Local Stage 3。"
-         + "然后跑一次任意基因组，看这个字段：", { before: 120 }));
-C.push(block(["python -c \"import json; print(json.load(",
-              "    open('<输出目录>/run_result.json'))['versions'])\""], { mono: true }));
-C.push(gap(120));
-C.push(table(["看到", "意思", "做什么"], [
-  ["consistency: ok", "装对了", "继续"],
-  ["consistency: package_metadata_stale", "代码是新的，安装元数据是旧的", "按它 note 里的话重装"],
-  ["consistency: not_installed", "根本没装上", "重装"],
-], [34, 38, 28]));
-C.push(p("这一步重要是因为：曾经有一整轮测试跑在旧代码上并被报告为通过 —— 一个非可编辑副本遮蔽了"
-         + "可编辑路径，git checkout 对实际运行的东西毫无影响，而输出里没有任何迹象。",
-         { size: 18, color: "5C5C5C", before: 120 }));
+// ---------------------------------------------------------------- 02
+C.push(h("02｜它是怎么工作的", HeadingLevel.HEADING_1));
+C.push(p("三方分工：**你**提供文件和选路线，**Biomni** 负责注释和跑程序，"
+         + "**RBPfinder** 按固定规则给候选分层 —— 不是聊天模型凭印象决定的。"));
+C.push(...figure("image1.png",
+                 "图 1｜主流程。候选分层由 RBPfinder 按冻结的规则产生。", 360, true));
+C.push(callout("一句话记住", [
+  "**候选清单 ≠ 已经实验证实的 RBP。**它是一份按证据强弱排好序的待验证名单。",
+], OKBG));
 C.push(gap());
 
-C.push(h("4. 怎么用", HeadingLevel.HEADING_1));
-C.push(p("不需要特殊指令，用自然语言说你要做什么。最短的形式："));
-C.push(block(["找出 /data/01F2.fasta 里的受体结合蛋白候选。宿主是 Salmonella。"]));
-C.push(p("但下面三件事值得每次都说 —— 它们会改变结果：", { before: 140 }));
-C.push(block([
-  "用 RBPfinder 分析 /data/01F2.fasta。",
-  "宿主 Salmonella。",
-  "走 accurate 路线（跑 phold）。",
-  "基因组是环状。",
-]));
-C.push(gap(120));
-C.push(table(["说什么", "不说会怎样"], [
-  ["**fast 还是 accurate**",
-   "skill 会主动问你，说了省一轮。这个差别比听起来大 —— 在 T7 上它就是文献确立的 RBP "
-   + "在不在清单里的区别。"],
-  ["**宿主属名**",
-   "不会出错，但少一层证据。只在配了对应宿主库且覆盖该菌属时才用得上，否则记录并跳过。"],
-  ["**是否环状**",
-   "**最容易悄悄吃亏的一条。**GenBank 没声明 topology 时必须显式说。尾模块跨过原点时提名会丢，"
-   + "**而候选池大小不变**（别的通道补上了同一个基因），所以没有任何打印出来的数字会暴露"
-   + "这个退化。"],
-], [22, 78]));
-C.push(gap());
+// ---------------------------------------------------------------- 03  (the ask)
+C.push(h("03｜报告里的字母：G、S、D、T 是什么", HeadingLevel.HEADING_1));
+C.push(p("报告会写某个候选有「**G+S+T**」这样的标记。这些字母表示"
+         + "**它拿到了哪几类证据** —— 字母不同，证据的"
+         + "**种类**就不同。"));
+C.push(table(["字母", "它回答什么问题", "证据从哪来"], [
+  ["**G**\n基因组位置",
+   "它在基因组里的**位置和邻居**对不对？尾部基因通常扎堆出现。",
+   "落在尾部模块窗口内、和其他候选挨在一起"],
+  ["**S**\n序列同源",
+   "**别的噬菌体里有没有长得很像的蛋白**？那个蛋白是干什么的？",
+   "BLAST 比对本地序列数据库"],
+  ["**D**\n功能域",
+   "它身上有没有**已知功能的结构域**？",
+   "PHROG 注释、HHpred、InterProScan"],
+  ["**T**\n三维结构",
+   "它**折叠出来长什么样**？像已知的哪个蛋白？",
+   "Foldseek 结构比对"],
+  ["**C**\n比较基因组",
+   "**近缘噬菌体在这个位置变不变**？受体结合蛋白往往变得快。",
+   "和近缘基因组比对（需要提供近缘序列）"],
+  ["**M**\n机器学习",
+   "专门的 RBP 预测模型怎么说？",
+   "**本版未实现**，不会出现在报告里"],
+], [16, 44, 40]));
 
-C.push(h("fast 和 accurate 怎么选", HeadingLevel.HEADING_2));
-C.push(table(["", "fast（默认）", "accurate"], [
-  ["注释", "pharokka", "pharokka + phold（全基因组）"],
-  ["额外耗时", "—", "8 核上 1–2 小时"],
-  ["买到什么", "—", "更好的注释：解决 pharokka 留作 hypothetical 的基因"],
-], [15, 28, 57]));
-C.push(p("实测在 T7（文献金标准）上：", { before: 140 }));
+C.push(h("为什么要分类 —— 这是看懂分层的关键", HeadingLevel.HEADING_2));
+C.push(callout("搜了三个数据库 ≠ 有三条证据", [
+  "如果三次搜的都是序列比对，那是**同一类证据看了三遍**，只算**一个 S**。",
+  "这是为了防止同一个事实被当成三票。",
+], WARNBG));
+C.push(p("所以分层里的 **E3 / E2 / E1 数的是「有几个不同字母」**，不是跑了几次搜索。"));
 C.push(block([
-  "fast      Primary: CDS_0039, CDS_0040              gp17 不在清单里",
-  "accurate  Primary: CDS_0039, CDS_0040, CDS_0052    gp17 在清单里（它就是文献 RBP）",
-], { bg: OKBG }));
-C.push(p([{ t: "注释差的基因组选 accurate。", b: true },
-          { t: "一小时 CPU 对一份错的清单来说很便宜。" }], { before: 140 }));
-C.push(gap());
-
-C.push(h("5. 会输出什么", HeadingLevel.HEADING_1));
-C.push(p("跑完终端会打印一行摘要，并在输出目录写下一组文件。摘要长这样："));
-C.push(block([
-  "OK   primary 4 | rescue 0 | completeness partial | coverage reduced",
-  "     internal pool 12 of 12 CDS (recall protection, not the shortlist)",
-  "     limitation [capability_unavailable]: completeness audit A2 could not run",
-  "     schema: PASS   outputs: runs/01F2/",
+  "G + S + T   →  E3    三类不同的证据都指向同一结论",
+  "G + S       →  E2    两类",
+  "G           →  E1    只有一类，或还没解决",
 ], { mono: true, bg: OKBG }));
-C.push(gap(140));
 
-C.push(h("输出目录里的文件", HeadingLevel.HEADING_2));
-C.push(table(["文件", "是什么", "要看吗"], [
-  ["RUN_REPORT.md", "人读的报告：候选清单、完整性、证据追溯、审计记录", "**先看这个**"],
-  ["RBP_candidates.tsv", "候选表格，可直接导入 Excel", "**要看**"],
-  ["run_result.json", "机器读的完整结果，所有字段都在这里", "追问细节时看"],
-  ["all_CDS_screening.tsv", "全部基因的筛查记录 —— 每个基因为什么在或不在池子里", "排查时看"],
-  ["*_BATCH.tsv", "需要人工去外部服务跑的批次文件（HHpred / AlphaFold 等）", "想进一步确证时看"],
-], [26, 52, 22]));
+C.push(h("两个分层字母连起来读", HeadingLevel.HEADING_2));
+C.push(table(["", "它回答", "取值"], [
+  ["**R**（前面那个）", "**它是什么**",
+   "R1 强候选 ｜ R2 可能是 ｜ R3 属于尾部装置但没有直接证据 ｜ N 有证据表明不是"],
+  ["**E**（后面那个）", "**我们看得多仔细**", "E3 三类以上 ｜ E2 两类 ｜ E1 一类或未解决"],
+], [20, 24, 56]));
+C.push(p("所以 **R2-E2** 读作「可能是 RBP，有两类独立证据支持」；"
+         + "**R3-E1** 读作「属于尾部装置，而且我们只看到一类证据」—— "
+         + "后者分层低，**很大程度上是因为还没看够**，不是因为已经排除了它。"));
+C.push(note("把这两件事分开，是为了让「证据不足」不会被误读成「已经否定」。"));
 C.push(gap());
 
-C.push(h("报告的三层结构 —— 按这个顺序读", HeadingLevel.HEADING_2));
-C.push(table(["层", "含义", "怎么用"], [
-  ["**Primary**", "证据最强，支持直接的受体结合作用", "**优先去测这些**"],
-  ["**Rescue**", "留着是为了保召回，不是因为证据强", "预算允许时再测"],
-  ["**Completeness**", "complete / partial / limited，连同它给的原因",
-   "**必须读** —— 它说明这份清单有多可信"],
-], [18, 50, 32]));
-C.push(gap(120));
-C.push(table(["内部候选池不是实验清单"], [
-  ["报告里还有一个「internal pool」，可能有十几二十个基因。它是为算法设计的**召回保护装置**，"
-   + "不是要去测的清单。把它当清单，前面所有分层工作就白做了。"],
-], [100]));
-C.push(gap());
+// ---------------------------------------------------------------- 04
+C.push(h("04｜怎么提需求", HeadingLevel.HEADING_1));
 
-C.push(h("候选表格长什么样", HeadingLevel.HEADING_2));
+C.push(h("先选路线：fast 还是 accurate", HeadingLevel.HEADING_2));
+C.push(table(["路线", "它多做了什么", "什么时候用"], [
+  ["**fast**（默认）", "用 pharokka 做基因注释，然后跑 RBPfinder。",
+   "第一次摸底；已有较好注释；想快点拿到清单。"],
+  ["**accurate**", "在上面基础上，额外用 phold 改善注释，再跑 RBPfinder。",
+   "很多基因标成 hypothetical protein（功能未知）；或 fast 跑完提示证据有限。"],
+], [20, 38, 42]));
+C.push(p("**这个选择比听起来重要。**accurate 改善的是**注释质量** —— "
+         + "而注释决定了候选能不能拿到 **D** 家族。在 T7 这株标准噬菌体上，"
+         + "它就是文献确认的那个 RBP **在不在清单里**的区别。"));
+C.push(note("accurate 更耗时，具体多久取决于机器和基因组大小。"
+            + "它可能改善结果，但不保证一定找全或一定更准。"));
+
+C.push(h("三种常见任务，直接复制", HeadingLevel.HEADING_2));
+C.push(p("**A. 只有原始基因组，想快速摸底**", { after: 60 }));
 C.push(block([
-  "rank  cds_id         tier   families  set_membership  annotation",
-  "1     DEMO_CDS_0004  R2-E2  D,G       primary         tail fiber protein",
-  "2     DEMO_CDS_0005  R2-E2  D,G       primary         tailspike protein",
-  "3     DEMO_CDS_0006  R2-E2  D,G       primary         tip attachment protein",
-  "4     DEMO_CDS_0007  R2-E2  D,G       primary         tail sheath and receptor...",
-  "5     DEMO_CDS_0000  R3-E2  D,G       reported_only   tail sheath protein",
-], { mono: true }));
-C.push(gap(140));
-
-C.push(h("分层怎么读：两个轴", HeadingLevel.HEADING_2));
-C.push(p([{ t: "分层是两个独立的轴。" },
-          { t: "tier_r 是「它是什么」，tier_e 是「我们看得多仔细」。", b: true },
-          { t: "两者分开，所以一次证据不足的运行不会被误读成一个有信心的否定结论。" }]));
-C.push(table(["tier_r — 它是什么", "tier_e — 看得多仔细"], [
-  ["**R1**  强 RBP：≥2 个受体结合家族，且含一个直接家族", "**E3**  ≥3 个独立证据家族"],
-  ["**R2**  可能是 RBP / 召回保护", "**E2**  2 个"],
-  ["**R3**  属于受体结合装置，但没有直接的识别证据", "**E1**  1 个，或未解决"],
-  ["**N**  有正面证据表明它不是 RBP", ""],
-], [60, 40]));
-C.push(p("所以 R2-E2 读作「可能是 RBP，有两条独立证据」；R3-E1 读作「属于尾部装置，而且我们"
-         + "只看到一条证据」—— 后者的低分层很大程度上是因为看得不够。",
-         { size: 18, color: "5C5C5C", before: 120 }));
-C.push(gap());
-
-C.push(h("完整性那一段长什么样", HeadingLevel.HEADING_2));
-C.push(block([
-  "completeness assessment    partial  -- sample-specific unresolved RBP risk",
-  "assessment coverage        reduced  -- 可选审计在这台机器上能否执行",
-  "sample-specific            complete -- 因本机无法执行全部审计而被封顶为 partial",
-  "",
-  "Limitations bounding this result:",
-  "- [installation] completeness audit A2 could not run: missing genomewide T or M",
-  "- [note] comparative analysis had no informative cohort",
-], { mono: true }));
-C.push(p([{ t: "注意最后两行的区别：" }, { t: "[installation]", b: true },
-          { t: " 是你这台机器缺能力（可以补），" }, { t: "[note]", b: true },
-          { t: " 是这次数据本身不适用（无需处理）。" }],
-         { size: 18, color: "5C5C5C", before: 120 }));
-C.push(gap());
-
-C.push(h("Primary 是空的怎么办", HeadingLevel.HEADING_2));
-C.push(p([{ t: "空不等于「这里没有 RBP」。", b: true },
-          { t: "先看哪些证据家族根本没跑起来：" }]));
-C.push(block([
-  "stage2_local    配了序列数据库吗？",
-  "stage3_local    本地结构搜索跑了吗，搜了多大范围？",
-  "limitations     哪些审计报告自己无法执行？",
-], { mono: true }));
-C.push(p("然后判断是哪一种：证据饥饿（某些家族从来没跑，所以没东西能到达进 Primary 的层级）"
-         + "还是基因组本身确实没解决（全都跑了还是没有合格的）。把没跑起来的家族和结果一起报告 ——"
-         + "不要把一次饥饿的运行当成生物学发现。", { before: 140 }));
-C.push(gap());
-
-C.push(h("拿到结果后值得追问的两句", HeadingLevel.HEADING_2));
-C.push(block([
-  "versions 和 vocabulary 字段是什么？",
-  "presentation_signals 里有没有触发？",
+  "请用 rbpfinder skill 分析我上传的「我的基因组.fasta」，先用 fast。",
+  "宿主：[填写已知名称／未知]；基因组：[已知环状／已知线状／不确定]。",
+  "先完成必要注释，再给出优先候选、补充候选和结果限制。",
 ]));
-C.push(p("前者决定这批数字以后还能不能和别的批次比；后者是候选校正提示 —— 部件名假阳性、"
-         + "伴侣基因邻接、证据方向冲突。", { size: 18, color: "5C5C5C", before: 120 }));
+C.push(p("**B. 已有注释文件，不想重复注释**", { before: 100, after: 60 }));
+C.push(block([
+  "请分析我上传的「已注释基因组.gbk」。",
+  "先检查是否包含基因注释及蛋白翻译序列；合格就复用现有注释。",
+  "不要混用其他注释来源的基因编号。",
+]));
+C.push(p("**C. fast 结果有限，想再做一次增强注释**", { before: 100, after: 60 }));
+C.push(block([
+  "请在已有 fast 结果基础上，评估改用 accurate 是否合适。",
+  "先说明需要补跑什么、预计耗时，再经我确认执行。",
+  "完成后比较两次候选清单的变化，并解释变化来自哪些新增信息。",
+]));
+
+C.push(h("哪些信息最好一起给", HeadingLevel.HEADING_2));
+C.push(table(["信息", "为什么有用", "不知道怎么办"], [
+  ["**宿主属名**", "只有配好且覆盖该宿主的数据库才用得上这条信息。",
+   "写「未知」，不影响运行"],
+  ["**环状还是线状**",
+   "**最容易悄悄吃亏的一条。**尾部基因如果跨过基因组起点，提名可能丢失，"
+   + "而候选池数量看不出变化。", "写「不确定」，让 Biomni 自己查文件"],
+  ["**已有材料**", "以前的运行结果、已知 RBP、结构材料都能用上。", "有就给，并说明来源"],
+], [22, 48, 30]));
 C.push(gap());
 
-C.push(h("6. 常见问题", HeadingLevel.HEADING_1));
-C.push(table(["看到什么", "怎么办"], [
-  ["probability_pct 全是 null",
-   "**预期行为。**这条路线上序列没有骨架坐标，算不出概率。什么都不用做，别重试。"],
-  ["A2 could not run: missing_genomewide_T_or_M",
-   "**默认路线的设计行为，不是故障。**说明完整性上限即可。"],
-  ["Local Stage 3 UNAVAILABLE", "结构库、ProstT5 权重或 foldseek 缺一个。看 README 第 1 节。"],
-  ["stage3_local.cds_searched: 0",
-   "用了 phold 的 TSV 作输入 —— 那个表格没有蛋白序列列。改用 --genbank phold.gbk。"],
-  ["foldseek 下载报 429",
-   "CDN 对数据中心 IP 限流。README「When the Foldseek CDN refuses you」有四条替代路径。"],
-  ["pharokka install 报 MD5 不符",
-   "实际是下到了几百字节的拦截页。**先看文件大小**，再走手动安装。"],
-  ["昨天还在的工具不见了", "/opt/conda 和 apt 装的包不过休眠。所有环境放 /workspace。"],
-  ["结果像是旧代码跑的", "非可编辑副本遮蔽了可编辑路径。见本指南第 3 节。"],
-], [36, 64]));
+// ---------------------------------------------------------------- 05
+C.push(h("05｜你会得到什么", HeadingLevel.HEADING_1));
+
+C.push(h("两份清单 + 一个完整性结论", HeadingLevel.HEADING_2));
+C.push(table(["你看到", "大白话", "下一步"], [
+  ["**Primary**", "工具给的**优先实验候选**，不是「已确认的 RBP」。", "结合实验可行性安排验证"],
+  ["**Rescue**", "为**降低漏掉真候选的风险**保留的补充名单，证据没那么强。",
+   "别忽略；预算允许就补测"],
+  ["完整性：**complete**", "按本次证据和检查，工具认为查得比较完整。", "仍需实验确认"],
+  ["完整性：**partial / limited**", "还有没查清的，或这次能用的证据／检查有限。",
+   "读具体原因：是缺工具、缺数据，还是查了仍未解决"],
+], [24, 46, 30]));
+C.push(callout("完整性不是准确率", [
+  "搜了很多次，不等于功能已确认；没搜到，也不等于这个基因不是 RBP。",
+  "报告里还有一个**内部候选池**（可能十几二十个基因）—— 那是算法用来防漏的，"
+  + "**不是实验清单**。",
+], WARNBG));
+
+C.push(h("先打开两个文件就够了", HeadingLevel.HEADING_2));
+C.push(table(["文件", "用途"], [
+  ["**RUN_REPORT.md**",
+   "**先读它。**候选清单、入选理由、完整性与限制。也可以让 Biomni 用中文概括。"],
+  ["**RBP_candidates.tsv**", "候选表，可以直接用 Excel 打开。"],
+  ["run_result.json", "完整运行记录。要追问证据、核对版本或复现时再让 Biomni 读。"],
+  ["*_BATCH.tsv", "后续分析的**待办清单** —— 它存在不代表那些分析已经做了。"],
+], [26, 74]));
+
+C.push(h("让 Biomni 替你读报告", HeadingLevel.HEADING_2));
+C.push(block([
+  "请用非专业用户能看懂的中文解释本次结果：",
+  "1. Primary 和 Rescue 分别有哪些，各自凭哪几类证据入选（说明 G/S/D/T 分别是什么）？",
+  "2. 本次哪些分析做了、哪些没做？还有哪些漏检风险？",
+  "3. 有没有需要人工复核的提示？不要把提示当成确认或否定。",
+  "4. 记下本次工具版本、规则版本和注释来源，方便以后比较。",
+]));
+
+C.push(h("Primary 是空的，怎么办", HeadingLevel.HEADING_2));
+C.push(p("**先别解释成「这个噬菌体没有 RBP」。**先查清楚：序列搜索能不能用、"
+         + "结构搜索是不是真的跑了、哪些检查没完成。"));
+C.push(p("要区分两种情况 —— **证据不够**（某几类证据根本没跑起来，"
+         + "所以没东西能到达进 Primary 的层级）和**确实没解决**（该跑的都跑了，"
+         + "仍然没有合格的）。前者补配置就能改善，后者是真实结论。"));
 C.push(gap());
 
-C.push(h("7. 不该做的事", HeadingLevel.HEADING_1));
-C.push(table(["不该做的事", "为什么"], [
-  ["**不要改阈值来让结果好看**", "一个为了迁就答案而改动的阈值，不再是任何东西的证据。"],
-  ["**不要让 agent 自己重新排名**",
-   "如果它说「虽然工具给了 R3，但我认为这个更可能是 RBP」，它在用工具的权威包装一个猜测。"
-   + "它应该做的是：指出分歧、解释机制、说清它没有改变工具的结论。**指出分歧不是重新排名。**"],
-  ["**不要手工建结构库**",
-   "能建成，但没有 taxonomy 文件，搜索会在运行时死掉。doctor 把这种库报成 "
-   + "CONFIGURED, INVALID 是刻意的。"],
-  ["**不要用 phold 的 TSV 作输入然后期待结构证据**", "那个表格没有蛋白序列列。用 phold.gbk。"],
+// ---------------------------------------------------------------- 06
+C.push(h("06｜第一次使用与排查", HeadingLevel.HEADING_1));
+
+C.push(h("技能「已启用」≠ 运行环境已齐全", HeadingLevel.HEADING_2));
+C.push(...figure("image2.png", "图 2｜技能界面。Enabled 只表示技能已启用。", 300));
+C.push(p("技能文件、工具环境、数据库是**三件不同的东西**。开场先发这段："));
+C.push(block([
+  "我想使用 rbpfinder。请先检查技能是否启用、工具和数据库是否可用。",
+  "如果需要部署，请参考官方仓库：https://github.com/Yarkev/RBPfinder",
+  "先说明缺少什么、需要下载多少，以及能否复用现有备份。",
+]));
+C.push(...figure("image3.png",
+                 "图 3｜更新卡片。出现时按提示确认保存 —— 仅复制文件不等于完成注册。", 300));
+C.push(...figure("image4.png", "图 4｜环境检查说明。它描述的是当时的环境。", 390));
+
+C.push(h("常见情况", HeadingLevel.HEADING_2));
+C.push(table(["遇到", "怎么办"], [
+  ["**换了会话或机器**",
+   "让 Biomni 重新检查。别默认数据库还在，也别直接认定必须全部重下 —— 有备份先评估复用。"],
+  ["**提示缺工具／缺数据库**", "先问：缺什么、会影响哪些结论，再决定补装还是接受受限结果。"],
+  ["**报告里某个值是 null 或空**",
+   "先让 Biomni 解释那个字段 —— 有些「空」是**预期行为**（比如某条路线算不出那个数值），"
+   + "不是出错。"],
+  ["**结果看起来像旧版本跑的**", "让 Biomni 核对工具版本，确认装的是最新代码。"],
+], [26, 74]));
+C.push(gap());
+
+// ---------------------------------------------------------------- 07
+C.push(h("07｜不该做的事", HeadingLevel.HEADING_1));
+C.push(table(["不要", "为什么"], [
+  ["**不要为了让结果好看去改规则**", "为迁就答案而改动的阈值，不再是任何东西的证据。"],
+  ["**不要让 AI 自己重新排名**",
+   "如果它说「虽然工具给了 R3，但我觉得这个更像 RBP」，它是在用工具的权威包装一个猜测。"
+   + "它该做的是：**指出分歧、解释原因、说清没有改变工具的结论。**"],
+  ["**不要把内部候选池当实验清单**", "那是防漏用的，不是让你去测的。"],
+  ["**不要把 *_BATCH.tsv 当成已完成的分析**", "它是待办，不是结果。"],
 ], [32, 68]));
 C.push(gap());
 
-C.push(p("完整参考：仓库 packaging/biomni/README.md（部署细节）、"
-         + "packaging/biomni/GETTING-STARTED.zh.md（本指南的 markdown 版，随代码更新）、"
-         + "WORKFLOW.md §5（错答案可能来自哪里，共 16 条已知弱点）。",
-         { size: 18, color: "5C5C5C", after: 60 }));
-C.push(p("本文档对应 v1.2.8+linux；代码更新后以仓库内文档为准。",
-         { size: 18, color: "5C5C5C" }));
+C.push(note("完整技术文档见仓库：packaging/biomni/README.md（部署）、"
+            + "GETTING-STARTED.zh.md（完整版）、WORKFLOW.md（流程与已知弱点）。"));
+C.push(note("本文档对应 v1.2.10+linux。工具更新后以仓库内文档为准。"));
 
-// ------------------------------------------------------------------ document
-
-const headingRun = (size) => ({ font: HAN, size, bold: true, color: "1D5C8A" });
+// ------------------------------------------------------------------ build
 
 const doc = new Document({
   styles: {
     default: {
       document: { run: { font: HAN, size: 21, color: "1A1A1A" },
-                  paragraph: { spacing: { line: 300 } } },
-      // outlineLevel is what the navigation pane, the outline view and a generated
-      // table of contents read. Overriding `paragraph` here replaces the built-in
-      // style's properties wholesale, so omitting it silently produced headings that
-      // looked right and were invisible to every one of those -- which matters, since
-      // this document exists to be edited.
-      title: { run: { font: HAN, size: 40, bold: true, color: "1A1A1A" },
+                  paragraph: { spacing: { line: 320 } } },
+      title: { run: { font: HAN, size: 42, bold: true, color: "1A1A1A" },
                paragraph: { spacing: { before: 0, after: 80 }, keepNext: true } },
-      heading1: { run: headingRun(30),
-                  paragraph: { spacing: { before: 320, after: 140 }, keepNext: true,
+      heading1: { run: { font: HAN, size: 30, bold: true, color: ACCENT },
+                  paragraph: { spacing: { before: 340, after: 150 }, keepNext: true,
                                outlineLevel: 0 } },
       heading2: { run: { font: HAN, size: 23, bold: true, color: "1A1A1A" },
-                  paragraph: { spacing: { before: 220, after: 100 }, keepNext: true,
+                  paragraph: { spacing: { before: 230, after: 110 }, keepNext: true,
                                outlineLevel: 1 } },
       heading3: { run: { font: HAN, size: 21, bold: true, color: "1A1A1A" },
                   paragraph: { spacing: { before: 180, after: 80 }, keepNext: true,
@@ -409,12 +435,12 @@ const doc = new Document({
   },
   sections: [{
     properties: { page: { margin: { top: 1134, bottom: 1134, left: 1247, right: 1247 } } },
-    footers: {},
     children: C,
   }],
 });
 
 Packer.toBuffer(doc).then((buf) => {
-  fs.writeFileSync(process.argv[2] || "guide.docx", buf);
-  console.log("wrote", process.argv[2] || "guide.docx");
+  const out = process.argv[2] || "guide.docx";
+  fs.writeFileSync(out, buf);
+  console.log("wrote", out);
 });

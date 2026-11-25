@@ -89,6 +89,10 @@ NOT_SHIPPED = {
                             "decide what the analysis should do",
     "packaging/biomni/README.md": "the Biomni route installs from a git checkout via "
                                   "setup_biomni.sh, not from this bundle",
+    "packaging/biomni/guide-images":
+        "figures for the user guide -- the flowchart the maintainer drew and three "
+        "platform screenshots. Versioned beside the generator so rebuilding the guide "
+        "does not silently drop them, but a bundle user is not reading that guide",
     "packaging/biomni/make_guide_docx.js":
         "builds the Word version of the user guide, for someone who wants to edit it. "
         "A maintainer tool for the Biomni route, needing npm and the docx package",

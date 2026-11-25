@@ -1369,6 +1369,94 @@ had already discovered that independently and built one, verified against the on
 reconstruct from a description; it belongs in `packaging/biomni/` if its author will share
 it.
 
+## v1.2.9+linux — the structure route, made usable and attributable
+
+### 64. The structure handoff could not be acted on (2026-11-25)
+
+`AF3_MONOMER_BATCH.tsv` carried the candidate id, the trigger, a checksum and the reason
+— **but not the sequence**. Nobody handed that file could submit anything, and
+`stage3.af3_priority.P1_mandatory` calls structure "the arbiter" for six triggers.
+`HHPRED_BATCH` had carried the sequence all along. The deferral was recorded in a comment
+citing two scripts that read the file by column name; neither exists in this repository,
+and adding a column is backward compatible for a name-based reader regardless.
+
+The provider metadata also hardcoded AlphaFold Server, obscuring that the contract is
+**predictor-agnostic**: `return_via: foldseek` means what returns is a structure searched
+with Foldseek, as `foldseek_json` — the same kind local Stage 3 writes. Anything producing
+a PDB/mmCIF satisfies the step. And nothing had ever stated the obvious cost: this build
+refuses every remote submission with exit 2 and promises sequences never leave the
+machine, while the documented handoff pointed at a hosted service. The tool is not the one
+transmitting; the user is, and they chose this build for that promise.
+
+### 65. Which backend earned each family (2026-11-25)
+
+`independent_families` said a family counted, never what produced it. With two routes to
+family T that is the difference between an attributable number and an unattributable one.
+Candidates now carry `family_provenance` — the representative's tool per counted family —
+and `structure_query`.
+
+Found while doing it: the literal I matched covered two early-return branches and the
+geometry record but **not the main record**, which is the one that counts and the one
+carrying `probability_pct`. Caught by reading the output, not the test result. And the
+geometry record takes no `hits` argument, so the inference landed there as a latent
+`NameError` — the suite stayed green because nothing calls it, which is this project's
+standing argument about dead code made concrete.
+
+### 66. The route was being guessed, and guessed wrong (2026-11-25)
+
+A real structure-structure run on the Biomni side found it. A probability can be absent
+for two unrelated reasons — no backbone coordinates (ProstT5), or an output format that
+did not request the column — and `query_kind` read the second as the first. **The field
+added to prevent mis-attribution was mis-attributing.**
+
+Now: a declaration beats inference, inference promotes to `backbone_structure` only when
+a probability is genuinely present, and anything else is **`unknown`** rather than a
+guess. Local Stage 3 stamps its own artefacts `sequence_3di`, since it ran ProstT5 and
+knows — without which the commonest route would report `unknown` forever, ProstT5 output
+being exactly the shape inference cannot resolve.
+
+### 67. A converter for the HPC route, not just a warning about it (2026-11-25)
+
+Measured in the same round: of Foldseek's native CLI column names only `prob` and
+`target` coincide with the web-JSON names `parse.foldseek.read` expects. Wrap CLI rows as
+JSON directly and `evalue`, `bits`, `fident`, `qstart`, `taxname` all land as **None,
+silently** — the hits survive while everything qualifying them vanishes. Worse, with the
+probabilities gone the route was then inferred as ProstT5.
+
+`local_foldseek.cli_rows_to_document` is now public: it maps the columns, refuses rows
+from more than one query (a structure attributed to the wrong protein is undetectable
+downstream), and stamps the route. Verified against the real CLI row from the test round
+— every field lands. The symptom signature, **probability present and everything else
+null**, is pinned as a test so it is recognisable rather than merely described.
+
+While exposing it I split `LocalFoldseek` in half with a stray mixin, leaving it with only
+`__init__`. The file parsed, so a syntax check said nothing. Reverted and redone with the
+function after the class, structure verified by walking the AST rather than reading the
+diff — the same shape of failure as the trap above: surface check passes, substance
+broken.
+
+### 68. Three executor tiers, decided rather than drifted into (2026-11-25)
+
+Until now the rules knew only "the tool never transmits", which left no way to describe a
+destination the **user** trusts but the tool does not run on. The maintainer's decision:
+public web services stay refused with exit 2 everywhere; the user's own machine is the
+batch handoff; a **session-trusted HPC cluster is allowed** — never by default, never
+silently, confirmed every run, and recorded in the report so "the destination was trusted"
+stays checkable afterwards instead of being a claim made in the moment.
+
+**Scoped to candidates, not the genome.** Genome-wide folding is hours of cluster time for
+a question this route does not ask, and it would not lift the A2 ceiling: measured here
+with imported structural evidence for **12 of 12 CDS**, A2 still reported
+`not_executable_due_to_missing_genomewide_T_or_M`, because the probe reads the local
+search's provenance and never the imported records. The rules carry that measurement so
+the proposal does not return ungrounded.
+
+Both skills also now state what a second structural route most invites getting wrong: a
+ProstT5 hit and a predicted-structure hit **collapse to the same T**. De-correlation counts
+families, never tools, so the second route adds confidence in a reading and not a vote.
+And pLDDT describes the predictor's confidence in its own model, not whether the protein
+binds a receptor.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend

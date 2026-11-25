@@ -20,12 +20,16 @@ any assumption about that field quietly wrong on some rows and not others.
 import hashlib
 import json
 
+import pathlib
+
 import pytest
 
 from rbpfinder import cli
 from rbpfinder.evidence import structural
 from rbpfinder.ingest import genbank as genbank_in
 import test_end_to_end as e2e
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 FUNCTIONAL = "7xyz_A Crystal structure of a phage tailspike receptor binding domain"
 
@@ -39,7 +43,7 @@ def _hit(prob=None):
     return a
 
 
-def _run_with_return(tmp_path, name, prob):
+def _run_with_return(tmp_path, name, prob, declare=None):
     gbk = tmp_path / "syn.gbk"
     if not gbk.exists():
         e2e._genbank(gbk)
@@ -47,8 +51,10 @@ def _run_with_return(tmp_path, name, prob):
     dark = next(r for r in rows
                 if (r["product"] or "").lower().startswith("hypothetical"))
     art = tmp_path / ("%s.foldseek.json" % name)
-    art.write_text(json.dumps(
-        {"results": [{"db": "pdb100", "alignments": [[_hit(prob)]]}]}), encoding="utf-8")
+    doc = {"results": [{"db": "pdb100", "alignments": [[_hit(prob)]]}]}
+    if declare:
+        doc["query_kind"] = declare
+    art.write_text(json.dumps(doc), encoding="utf-8")
     man = tmp_path / ("%s.tsv" % name)
     man.write_text(
         "cds_id\tkind\tpath\tsequence_sha256\tbatch_id\n%s\tfoldseek_json\t%s\t%s\t\n"
@@ -68,9 +74,29 @@ def test_a_hit_carrying_a_probability_is_a_structure_query():
     assert structural.query_kind([{"probability": 0.98}]) == "backbone_structure"
 
 
-def test_a_hit_with_no_probability_is_a_sequence_query():
-    """What ProstT5 produces: Foldseek has no backbone to compute a probability from."""
-    assert structural.query_kind([{"probability": None}]) == "sequence_3di"
+def test_a_missing_probability_alone_is_not_enough_to_name_the_route():
+    """The trap, found by a real structure-structure run. A probability can be absent
+    for two unrelated reasons: the query had no backbone coordinates (ProstT5), or the
+    search's output format simply did not request the column. An earlier version read
+    the second as the first, which mis-attributes the route -- the exact failure this
+    field exists to prevent."""
+    assert structural.query_kind([{"probability": None}]) == "unknown"
+
+
+def test_a_declaration_beats_inference():
+    """Local Stage 3 ran ProstT5 and knows; an HPC route searched a structure and knows.
+    Whoever knows says so, and inference is only the fallback."""
+    assert structural.query_kind(
+        [{"probability": None, "declared_query_kind": "sequence_3di"}]) == "sequence_3di"
+    assert structural.query_kind(
+        [{"probability": 0.9, "declared_query_kind": "sequence_3di"}]) == "sequence_3di"
+
+
+def test_local_stage3_stamps_its_own_artefacts():
+    """Otherwise the commonest route would report `unknown` forever, since ProstT5
+    output is exactly the shape inference cannot resolve."""
+    src = (ROOT / "rbpfinder" / "stage3_local.py").read_text(encoding="utf-8")
+    assert 'doc["query_kind"] = "sequence_3di"' in src
 
 
 def test_no_hits_is_neither_rather_than_guessed():
@@ -93,7 +119,7 @@ def test_it_is_derived_not_declared():
 def test_the_two_routes_are_distinguishable_in_the_output(tmp_path):
     """The point of the whole exercise: same family, same tier, different provenance."""
     struct = _run_with_return(tmp_path, "struct", prob=0.98)
-    prost = _run_with_return(tmp_path, "prost", prob=None)
+    prost = _run_with_return(tmp_path, "prost", prob=None, declare="sequence_3di")
 
     assert struct["structure_query"] == "backbone_structure"
     assert prost["structure_query"] == "sequence_3di"
@@ -180,3 +206,69 @@ def test_the_skill_states_all_three_rules_for_the_hpc_tier():
     # and the thing a second structural route most invites getting wrong
     assert "still ONE family" in skill
     assert "not add a vote" in skill
+
+
+# ------------------------- the CLI/web-JSON column trap, found by a real HPC-style run
+
+CLI_COLUMNS = ("query,target,fident,alnlen,mismatch,gapopen,qstart,qend,tstart,tend,"
+               "evalue,bits,prob,theader,taxname").split(",")
+CLI_ROW = "\t".join([
+    "X_CDS_0005", "4b1m_A", "1.000", "160", "0", "0", "5", "165", "1", "161",
+    "6.437e-30", "1440", "1.000", "4b1m_A CBM66 carbohydrate binding module",
+    "Bacillus subtilis"])
+
+
+def _parse_doc(tmp_path, doc, name="d.json"):
+    from rbpfinder.parse import foldseek
+    p = tmp_path / name
+    p.write_text(json.dumps(doc), encoding="utf-8")
+    return foldseek.read(p)
+
+
+def test_the_converter_lands_every_field(tmp_path):
+    """Measured against a real structure-structure search. Of Foldseek's native column
+    names only `prob` and `target` coincide with the web-JSON names the parser reads."""
+    from rbpfinder.providers.local_foldseek import cli_rows_to_document
+    h = _parse_doc(tmp_path, cli_rows_to_document([CLI_ROW], CLI_COLUMNS))[0]
+    assert h["probability"] == 1.0
+    assert h["evalue"] == 6.437e-30
+    assert h["score"] == 1440.0
+    assert h["seq_identity"] == 1.0
+    assert h["query_span"] == (5, 165)
+    assert h["taxon"] == "Bacillus subtilis"
+    # theader already starts with the identifier; joining blindly would duplicate it
+    assert h["description"] == "CBM66 carbohydrate binding module"
+
+
+def test_hand_rolling_the_json_loses_everything_but_the_probability(tmp_path):
+    """The symptom signature, pinned so it is recognisable rather than only described:
+    a probability present and every other field None means someone used Foldseek's
+    native column names instead of the converter."""
+    naive = {"results": [{"db": "pdb100", "alignments": [[dict(
+        zip(CLI_COLUMNS, CLI_ROW.split("\t")))]]}]}
+    h = _parse_doc(tmp_path, naive, "naive.json")[0]
+    assert h["probability"] == 1.0          # `prob` coincides, so it survives
+    assert h["evalue"] is None              # `evalue` vs `eval`
+    assert h["score"] is None               # `bits` vs `score`
+    assert h["seq_identity"] is None        # `fident` vs `seqId`
+    assert h["query_span"] == (None, None)  # `qstart` vs `qStartPos`
+    assert h["taxon"] == ""                 # `taxname` vs `taxName`
+
+
+def test_the_converter_refuses_rows_from_several_queries(tmp_path):
+    """One document holds one CDS. Mixing them would attribute a structure to the wrong
+    protein, which nothing downstream could detect."""
+    from rbpfinder.providers.local_foldseek import cli_rows_to_document
+    other = CLI_ROW.replace("X_CDS_0005", "X_CDS_0009", 1)
+    with pytest.raises(ValueError, match="wrong protein"):
+        cli_rows_to_document([CLI_ROW, other], CLI_COLUMNS)
+
+
+def test_the_converter_declares_the_route(tmp_path):
+    """The second half of the same trap: without a declaration, a structure search whose
+    format omitted `prob` would be inferred as ProstT5."""
+    from rbpfinder.providers.local_foldseek import cli_rows_to_document
+    doc = cli_rows_to_document([CLI_ROW], CLI_COLUMNS)
+    assert doc["query_kind"] == "backbone_structure"
+    hits = _parse_doc(tmp_path, doc, "declared.json")
+    assert structural.query_kind(hits) == "backbone_structure"

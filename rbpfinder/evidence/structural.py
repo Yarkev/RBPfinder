@@ -72,14 +72,27 @@ def query_kind(hits):
     across a run -- which is exactly what adding a structure predictor does -- then
     makes any assumption about that field quietly wrong.
 
-    Derived from the data instead of declared, because a manifest row can come from
-    either route and a claim in it would be unverifiable.
+    Declared where the producer knows, inferred only as a fallback, and `unknown` rather
+    than a guess when neither settles it.
+
+    An earlier version inferred "no probability therefore ProstT5", which is wrong and
+    was caught by a real structure-structure run. A probability can be absent for two
+    unrelated reasons: the query had no backbone coordinates (ProstT5), or the search's
+    output format simply did not ask for the column. Treating the second as the first
+    mis-attributes the route -- the exact failure this field exists to prevent. Local
+    Stage 3 therefore stamps its own artefacts, since it ran ProstT5 and knows.
     """
     if not hits:
         return "no_hits"
-    return ("backbone_structure"
-            if any(h.get("probability") is not None for h in hits)
-            else "sequence_3di")
+    declared = next((h.get("declared_query_kind") for h in hits
+                     if h.get("declared_query_kind")), None)
+    if declared:
+        return declared
+    if any(h.get("probability") is not None for h in hits):
+        return "backbone_structure"
+    # A probability column that was never requested looks identical to one that cannot
+    # exist. Saying so beats picking the wrong one.
+    return "unknown"
 
 
 def build(rec, hits, rules, provider_id):

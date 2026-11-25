@@ -424,6 +424,24 @@ structure_query     "backbone_structure"   a real structure was searched
                     "no_hits"              searched, nothing came back
 ```
 
+**Converting Foldseek CLI output: use the helper, never hand-roll the JSON.**
+
+```python
+from rbpfinder.providers.local_foldseek import cli_rows_to_document
+doc = cli_rows_to_document(tsv_text.splitlines(), COLUMNS.split(","))
+```
+
+Of Foldseek's native column names only `prob` and `target` coincide with the field names
+the importer reads. Wrap CLI rows as JSON directly and `evalue`, `bits`, `fident`,
+`qstart` and `taxname` all land as **None, silently** — the hits survive while the
+e-value, score, identity, spans and taxon vanish. The helper maps them, refuses rows from
+more than one query, and stamps `query_kind`.
+
+**The symptom, if you meet it anyway: a probability present and everything else null.**
+That is CLI column names reaching the importer unconverted. And it is worse than lost
+evidence — with the probabilities gone the route would have been inferred as ProstT5, so
+the provenance comes out wrong too.
+
 Quote `structure_query` whenever you report family-T evidence. Without it a null
 `probability_pct` is ambiguous between "this route cannot produce one" and "the search
 found nothing", and once both routes are in play that ambiguity lands on some candidates

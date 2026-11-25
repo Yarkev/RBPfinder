@@ -216,3 +216,48 @@ class LocalFoldseek(object):
         out.update(cached_docs)
         out.update(searched)
         return out
+
+
+def cli_rows_to_document(rows, columns, query_kind="backbone_structure"):
+    """Foldseek easy-search CLI output -> the JSON document this product imports.
+
+    Public because an external route -- an HPC job that folds a candidate and then
+    searches the structure -- needs exactly this and would otherwise hand-roll the JSON.
+    That was measured to fail in a specific and nasty way: of Foldseek's native column
+    names only `prob` and `target` coincide with the web-JSON field names
+    `parse.foldseek.read` expects, so `evalue`, `bits`, `fident`, `qstart` and `taxname`
+    all land as None **silently**. The hits survive; the e-value, score, identity, spans
+    and taxon vanish.
+
+    Worse than losing evidence: with every probability gone, route inference read the
+    result as a ProstT5 search, so the provenance came out wrong too. Hence the
+    `query_kind` stamped into the document -- the caller knows what it searched, and a
+    declaration beats inference.
+
+        from rbpfinder.providers.local_foldseek import cli_rows_to_document
+        doc = cli_rows_to_document(tsv_text.splitlines(), COLUMNS.split(","))
+        json.dump(doc, open("X_CDS_0005.foldseek.json", "w"))
+
+    `columns` is the `--format-output` string actually passed to Foldseek, split on
+    commas, so the mapping follows what was requested rather than an assumption.
+
+    The symptom to recognise if someone hand-rolls it anyway: a probability is present
+    and everything else is None.
+    """
+    conv = LocalFoldseek.__new__(LocalFoldseek)
+    conv.columns = list(columns)
+    by_query = {}
+    for line in rows:
+        line = line.strip()
+        if not line:
+            continue
+        qid, aln = conv._row_to_alignment(line.split("\t"))
+        by_query.setdefault(qid, []).append(aln)
+    if len(by_query) > 1:
+        raise ValueError(
+            "rows for %d different queries; one document holds one CDS, so split them "
+            "first -- otherwise the evidence lands on the wrong protein"
+            % len(by_query))
+    return {"query_kind": query_kind,
+            "results": [{"db": "pdb100",
+                         "alignments": [next(iter(by_query.values()), [])]}]}

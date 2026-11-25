@@ -32,6 +32,11 @@ def _split_target(target):
 
 def read(path):
     d = json.loads(pathlib.Path(path).read_text(encoding="utf-8", errors="replace"))
+    # Optional, document-level: what the QUERY was. A producer that knows -- local
+    # Stage 3 ran ProstT5, an HPC route searched a real structure -- says so here, and
+    # `structural.query_kind` trusts it over any inference. Absent is fine; inference
+    # takes over, and reports `unknown` when it cannot tell.
+    declared = d.get("query_kind")
     out = []
     for block in d.get("results", []):
         db = block.get("db")
@@ -52,6 +57,7 @@ def read(path):
                 "target_span": (a.get("dbStartPos"), a.get("dbEndPos")),
                 "query_length": a.get("qLen"),
                 "taxon": a.get("taxName") or "",
+                "declared_query_kind": declared,
             })
     return out
 

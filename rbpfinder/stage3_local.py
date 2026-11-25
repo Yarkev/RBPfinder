@@ -227,6 +227,12 @@ def prepare(cds_rows, rules, capability, outdir, prostt5_model=None, env=None,
     for rec in recs:
         cid = rec["cds_id"]
         doc = docs.get(cid, {"results": []})
+        # This route is ProstT5: a sequence becomes 3Di and no backbone coordinates
+        # exist, so Foldseek cannot produce a probability here at all. Stamp it, because
+        # that is indistinguishable afterwards from a structure search whose output
+        # format merely omitted the column -- and mis-reading one as the other
+        # mis-attributes the evidence route.
+        doc["query_kind"] = "sequence_3di"
         # Written on purpose even when empty: searched-no-hit must stay on disk.
         path = art_dir / (cid + ".foldseek.json")
         path.write_text(json.dumps(doc), encoding="utf-8")

@@ -7,7 +7,7 @@ visibility: "public"
 starting-prompt: "Analyse this phage GenBank file with RBPfinder and tell me which proteins to test first as receptor-binding proteins."
 ---
 
-# RBPfinder (linux/biomni build, v1.2.9+linux)
+# RBPfinder (linux/biomni build, v1.2.10+linux)
 
 Use the installed `rbpfinder` executable. **Do not reproduce or replace its scientific
 decision rules in model reasoning.** The rules live in the package's frozen
@@ -241,6 +241,16 @@ be asked what they mean:
 | `supports_apparatus_membership` | part of the tail apparatus; does not discriminate binding within it | a *part* name: "tail fiber protein", "distal tail", baseplate wedge |
 | `supports_structural_only` | a structural component, not a binder | tail tube, sheath, connector, adaptor, "tail protein" |
 | `uninformative` | no vocabulary matched | most PDB titles |
+
+**One name, different readers.** A direction is assigned per *record*, by the vocabulary
+of the family that produced it — and those vocabularies deliberately disagree. The
+clearest case is in the table above: `"tail fiber protein"` reads as **apparatus** through
+the S consensus vocabulary and as **receptor binding** through the D vocabulary. That is
+not an inconsistency to report as a bug. It was measured on 2026-08-19 — on W073 the
+Ig-adapter rod, the real RBP, the connector and the tip all carried homologs with that
+name, so as a *homolog description* it identifies the apparatus and cannot discriminate
+inside it — and on T7 that same divergence is exactly what lifts gp17 into Primary. Read
+the family alongside the direction; neither alone tells you what happened.
 
 **`uninformative` in the majority is expected when searching PDB, and is not "no
 evidence".** PDB titles are crystallographic descriptions ("Crystal structure of the
@@ -506,8 +516,10 @@ Preserve these when summarising:
   vocabulary finding — that is how `calibration: pending` gets discharged, and it costs
   nothing beyond the runs already done.
 - **`top_unresolved_candidates` is a conditional key.** It appears only when the
-  shortlist is empty, or when `completeness` is `limited`, so the top-level key count is
-  31 or 32. It is presentation-only: those CDS are **not** promoted to Rescue and are
+  shortlist is empty, or when `completeness` is `limited`. **Do not rely on a fixed
+  top-level key count** — that figure has been stated wrongly four times in this
+  project's own documents and moves with every release; the condition above is what
+  matters. It is presentation-only: those CDS are **not** promoted to Rescue and are
   **not** counted in any recall figure. Do not read its absence as a signal — it means
   the shortlist was non-empty and not `limited`, which `primary_set`, `rescue_set` and
   `completeness_assessment` already told you.
@@ -543,7 +555,8 @@ Preserve these when summarising:
 | `foldseek databases` complains about arguments | it needs **three** paths: `databases <name> <out-prefix> <tmp>` | pass all three |
 | the foldseek download lands on a repository page | `mmseqs.org` 302s to the repo | use `https://mmseqs.com/foldseek/foldseek-linux-avx2.tar.gz` |
 | `pharokka install` reports an MD5 mismatch | Zenodo returns **403** to data-centre IPs, and the "database" downloaded is a few-hundred-byte block page | check the file size before believing the MD5 message. Install the database by hand: unpack the tarball and flatten the inner directory into `<env>/lib/python3.*/databases/`, then verify with `check_db_installation()` |
-| `np.long` AttributeError from phold | mixed numpy/scipy versions | phold is not on bioconda: `pip install phold==1.2.5` with `numpy<2` and `transformers==4.46.3` pinned; repair with `pip install --force-reinstall --no-deps scipy==1.14.1` |
+| installing phold | **try `mamba install -c bioconda phold` first** — reported working, exit 0, on 2026-11-25. An earlier round (2026-11-19) reported it absent from bioconda and used pip. Both are on record, so try conda and fall back rather than assuming either | — |
+| `np.long` AttributeError from phold | mixed numpy/scipy versions, seen on the pip route | `pip install phold==1.2.5` with `numpy<2` and `transformers==4.46.3` pinned; repair with `pip install --force-reinstall --no-deps scipy==1.14.1` |
 | `blastp` prints USAGE | the flag is `-num_threads`, not `-threads` | — |
 | a tool that worked yesterday is gone | `/opt/conda` and apt-installed packages do not survive hibernation | put every prefix environment under `/workspace` |
 | a run behaves like the OLD code after `git checkout` | a non-editable copy was installed into the venv and shadows the editable path, so `import rbpfinder` resolves to the copy | **verify, do not assume**: `python -c "import rbpfinder,inspect;print(inspect.getsourcefile(rbpfinder))"` must point into your checkout. `uv pip install -e` survives a branch switch with no reinstall; changing *install method* needs this check. Also compare `versions.package` in `run_result.json` against the commit you meant to test |

@@ -168,3 +168,43 @@ def test_frontmatter_has_a_name_and_a_description(pkg):
     end = lines.index("---", 1)
     keys = [l.split(":", 1)[0] for l in lines[1:end] if ":" in l]
     assert "name" in keys and "description" in keys
+
+
+def test_know_how_does_not_carry_the_superseded_attribution():
+    """KNOW_HOW is the agent's REASONING companion -- whichever of the two it reads
+    first is the framework it believes. It kept "what lifts a candidate is the S family"
+    for four commits after SKILL.md was corrected, so the two documents handed an agent
+    opposite models of what moves a tier. The "SKILL.md wins" tiebreak does not help
+    when nothing signals a conflict."""
+    import re
+    raw = (ROOT / "packaging" / "biomni" / "skill" / "rbpfinder" / "references"
+           / "KNOW_HOW.md").read_text(encoding="utf-8")
+    # prose wraps, so compare on normalised whitespace rather than on the line breaks
+    kh = re.sub(r"\s+", " ", raw)
+    assert "with T corroborating" not in kh
+    assert "What lifts a candidate is the **S family**" not in kh
+    # and it now carries what actually moved it
+    assert "only a direction raises `tier_r`" in kh
+    assert "dark-matter" in kh
+
+
+def test_neither_skill_document_quotes_a_fixed_key_count():
+    """Stated wrongly four times across these documents, and it moves every release.
+    The condition is what a reader needs."""
+    import re
+    for rel in ("packaging/biomni/skill/rbpfinder/SKILL.md",
+                "packaging/biomni/skill/rbpfinder/references/KNOW_HOW.md",
+                "WORKFLOW.md"):
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        for m in re.finditer(r"(\d+) or (\d+)\b[^\n]{0,40}key", text):
+            raise AssertionError("%s quotes a key count: %r" % (rel, m.group(0)))
+
+
+def test_the_direction_table_says_the_vocabularies_disagree():
+    """Read alone, the table implies one vocabulary decides. "tail fiber protein" is
+    apparatus through S and receptor binding through D -- deliberately, and on T7 that
+    divergence is what lifts gp17."""
+    skill = (ROOT / "packaging" / "biomni" / "skill" / "rbpfinder"
+             / "SKILL.md").read_text(encoding="utf-8")
+    assert "One name, different readers" in skill
+    assert "not an inconsistency to report as a bug" in skill

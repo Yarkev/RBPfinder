@@ -1457,6 +1457,50 @@ families, never tools, so the second route adds confidence in a reading and not 
 And pLDDT describes the predictor's confidence in its own model, not whether the protein
 binds a receptor.
 
+## v1.2.10+linux — a review of the deployed package
+
+### 69. KNOW_HOW kept the attribution SKILL.md had corrected (2026-11-25)
+
+Item 43 corrected the gp17 attribution in nine places. It missed the tenth, and the tenth
+was the worst one: `references/KNOW_HOW.md` still read *"what lifts a candidate is the
+**S family** — with T corroborating"* for four commits after SKILL.md said the opposite.
+
+KNOW_HOW is the agent's **reasoning companion**. Whichever document it reads first is the
+model it believes, and the "where the two differ, SKILL.md wins" tiebreak does not help
+when nothing signals that they differ. Two guidance paths handing out opposite models of
+what moves a tier is worse than either being wrong alone.
+
+It now carries the measured mechanism — more families raise `tier_e`, only a direction
+raises `tier_r`; a full RefSeq viral database left gp17 at `R3` because its top-10
+homologs are all part names; what moved it was a D family from a PHROG annotation — and
+the dark-matter case, where T is the only family that can speak at all. A test asserts
+the superseded wording cannot return.
+
+Reported by the Biomni session reviewing the deployed package, which is the only way this
+was going to be found: I had grepped for the claim and fixed what I saw, and this
+phrasing was different enough to survive it.
+
+### 70. Three smaller corrections from the same review (2026-11-25)
+
+**phold on bioconda.** The troubleshooting table asserted it is not there, from the
+2026-11-19 round. The 2026-11-25 round installed it with `mamba -c bioconda phold`,
+exit 0. Rather than flipping the claim, both rounds are now on record with the advice to
+try conda first and fall back — a transient failure and a permanent absence look identical
+from one attempt, and two contradicting reports is exactly when a document should stop
+asserting.
+
+**The direction table read as though one vocabulary decided.** It lists
+`"tail fiber protein"` under apparatus, while the D vocabulary reads the same words as
+receptor binding. Both are correct; the divergence is deliberate and measured
+(2026-08-19), and on T7 it is what lifts gp17. The table now says so, because read alone
+it invites someone to "fix" the inconsistency.
+
+**The top-level key count is gone from the documents.** Stated wrongly four times — 29,
+31, 31-or-32, then 34-or-35 while bumping this very release, each time from memory on a
+line that already said to count it from a run. Removed rather than corrected a fifth
+time; the conditional description was always the part that mattered. A test now fails if
+any skill document quotes one.
+
 ## Known limitations carried forward
 
 - **Window merging still happens in rotated linear space.** If two windows *both* extend

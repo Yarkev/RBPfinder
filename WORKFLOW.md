@@ -2,7 +2,7 @@
 
 Read from the code, not from SKILL.md. Where the two disagree, §5 says so.
 
-Current as of **`v1.2.9+linux`**. Revised 2026-11-21 against a Biomni test round, which
+Current as of **`v1.2.10+linux`**. Revised 2026-11-21 against a Biomni test round, which
 corrected an attribution in §2 that was mine and wrong — the correction is quoted in
 place rather than edited away.
 
@@ -238,10 +238,11 @@ run_flags             e.g. REMOTE_SUBMISSION_BLOCKED, STRUCTURAL_SCREEN_UNAVAILA
 ```
 
 `top_unresolved_candidates` is present only when the shortlist is empty or
-`completeness` is `limited`, so the key count is **32 or 33** at `v1.2.9+linux` (measured, not estimated — `family_provenance` and `structure_query` are per-CANDIDATE fields, which is where I guessed wrong yet again) — not a
-fixed number, and not a number worth quoting: this document has stated it wrong three
-times (29, then 31, then 31-or-32, each true of a different commit). Count it from a run
-if you need it. It is presentation-only: those CDS are not promoted to Rescue and are not counted
+`completeness` is `limited`. **The number of top-level keys is not documented here on
+purpose.** This document stated it wrongly four times — 29, 31, 31-or-32, then 34-or-35,
+each confidently and each from memory rather than from a run — so the figure has been
+removed rather than corrected a fifth time. The condition above is what a reader needs;
+if you want the count, take it from a run. It is presentation-only: those CDS are not promoted to Rescue and are not counted
 in any recall figure. Its absence carries no information `primary_set`, `rescue_set` and
 `completeness_assessment` do not already give. Making it always present with `null` would
 be the tidier contract and matches this project's preference for explicit states over

@@ -77,11 +77,30 @@ Everything is done by running the `rbpfinder` executable. There is no Python API
 
 ## What the evidence can and cannot do
 
-- **Family T alone rarely settles anything.** Measured on T7: gp17, the
-  literature-established RBP, came out `R3 / apparatus` with a strong structural hit,
-  because every PDB title for it is a part name or a crystallographic phrase. What lifts a
-  candidate is the **S family** — homology to characterised phage proteins carrying
-  functional annotations — with T corroborating.
+- **No single family settles it, and which one matters depends on the CDS.** Measured on
+  T7: gp17, the literature-established RBP, came out `R3 / apparatus` with a strong
+  structural hit, because every PDB title for it is a part name or a crystallographic
+  phrase.
+
+  **Adding a sequence database did not fix that**, which an earlier version of this file
+  got wrong. With a full RefSeq viral protein database (722,823 sequences) gp17's top-10
+  homologs are *all* annotated "tail fiber protein" — apparatus, 10 of 10 — so it went
+  `R3-E1` → `R3-E3` and never entered Primary. **More families raise `tier_e`; only a
+  direction raises `tier_r`.** What moved it was a **D** family from a PHROG/phold
+  annotation, where the same words read as receptor binding.
+
+  So the operative advice is *configure a source of functional annotation*, not
+  *configure a database*. And family T is not merely corroboration: on a **dark-matter**
+  CDS — "hypothetical protein", so no D, and no homolog hit, so no S — it is the only
+  family that can say anything at all. `G` alone caps at `R3-E1` and can never enter
+  Primary; `G` plus a functional T hit reaches `R2-E2`.
+- **The same product name is read differently by different families, on purpose.**
+  "tail fiber protein" reads as receptor binding through the D vocabulary and as apparatus
+  membership through the S consensus vocabulary (moved there 2026-08-19, measured: on
+  W073 the Ig-adapter rod, the real RBP, the connector and the tip all carried homologs
+  with that name, so it identifies the apparatus and cannot discriminate inside it). That
+  divergence is deliberate, and on T7 it is what lifts gp17. Do not "fix" it by reading
+  one table and assuming the other agrees.
 - **`uninformative` dominating a PDB search is expected.** PDB titles describe crystals,
   not functions. It does not mean "no evidence".
 - **An empty Primary is not a biological finding** until you have checked whether S and D
